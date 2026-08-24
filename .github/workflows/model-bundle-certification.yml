@@ -5,12 +5,16 @@ on:
     branches: [main]
     paths:
       - "pyproject.toml"
+      - "Containerfile"
+      - "compose.yaml"
       - "src/fieldora_bastion/**"
       - "tests/test_model_bundle.py"
       - ".github/workflows/model-bundle-certification.yml"
   pull_request:
     paths:
       - "pyproject.toml"
+      - "Containerfile"
+      - "compose.yaml"
       - "src/fieldora_bastion/**"
       - "tests/test_model_bundle.py"
       - ".github/workflows/model-bundle-certification.yml"
@@ -49,4 +53,30 @@ jobs:
               raise SystemExit('executable/pickle rejection boundary is incomplete')
           if m._MAX_FILES > 10000:
               raise SystemExit('file-count bound is unexpectedly broad')
+          PY
+      - name: Certify isolated container contract
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          compose = Path('compose.yaml').read_text()
+          required = (
+              'network_mode: none',
+              'read_only: true',
+              'user: "10001:10001"',
+              'cap_drop:',
+              '- ALL',
+              'no-new-privileges:true',
+              './quarantine:/quarantine:ro',
+              './approved:/approved:rw',
+          )
+          for needle in required:
+              if needle not in compose:
+                  raise SystemExit(f'missing container isolation marker: {needle}')
+          forbidden = ('docker.sock', 'FIELDORA_', '/var/lib/fieldora', 'network_mode: host')
+          for needle in forbidden:
+              if needle in compose:
+                  raise SystemExit(f'forbidden trust-boundary marker: {needle}')
+          containerfile = Path('Containerfile').read_text()
+          if 'USER 10001:10001' not in containerfile:
+              raise SystemExit('runtime image must drop root')
           PY
