@@ -85,7 +85,26 @@ def _sha256(path: Path) -> str:
     return digest.hexdigest()
 
 
-def _clean_scan_attestation(scan_report: Path, file_count: int) -> dict[str, object]:
+def _payload_tree_sha256(entries: list[dict[str, object]]) -> str:
+    """Digest canonical path/size/content-hash tuples for scan/build binding."""
+    digest = hashlib.sha256()
+    normalized = sorted(
+        (
+            str(entry["path"]),
+            int(entry["size_bytes"]),
+            str(entry["sha256"]),
+        )
+        for entry in entries
+    )
+    for path, size, sha256 in normalized:
+        digest.update(f"{path}\0{size}\0{sha256}\n".encode("utf-8"))
+    return digest.hexdigest()
+
+
+def _clean_scan_attestation(
+    scan_report: Path,
+    manifest_files: list[dict[str, object]],
+) -> dict[str, object]:
     if scan_report.is_symlink() or not scan_report.is_file():
         raise BundleBuildError("scan report must be a regular non-symlink file")
     try:
@@ -105,8 +124,13 @@ def _clean_scan_attestation(scan_report: Path, file_count: int) -> dict[str, obj
         scanned_files = int(report.get("file_count"))
     except (TypeError, ValueError) as exc:
         raise BundleBuildError("scan report file_count is invalid") from exc
-    if scanned_files != file_count:
+    if scanned_files != len(manifest_files):
         raise BundleBuildError("scan report file_count does not match bundle payload")
+    payload_sha256 = str(report.get("payload_sha256") or "").strip().lower()
+    if len(payload_sha256) != 64 or any(c not in "0123456789abcdef" for c in payload_sha256):
+        raise BundleBuildError("scan report payload_sha256 is invalid")
+    if payload_sha256 != _payload_tree_sha256(manifest_files):
+        raise BundleBuildError("scan report payload digest does not match bundle payload")
     scanner = _metadata(str(report.get("scanner") or ""), "scanner", "unknown")
     scanner_version = _metadata(
         str(report.get("scanner_version") or ""), "scanner_version", "unknown"
@@ -122,6 +146,7 @@ def _clean_scan_attestation(scan_report: Path, file_count: int) -> dict[str, obj
         "definitions": definitions,
         "scanned_at": scanned_at,
         "file_count": scanned_files,
+        "payload_sha256": payload_sha256,
     }
 
 
@@ -160,8 +185,11 @@ def build_model_bundle(
 
     This function does not download, execute, or malware-scan content. Acquisition
     and scanning must complete before this builder is called. When supplied, a clean
-    scanner report is validated and embedded into the manifest before signing.
+    scanner report is validated against the exact payload bytes and embedded into
+    the manifest before signing.
     """
+    if max_total_bytes <= 0:
+        raise BundleBuildError("maximum bundle size must be positive")
     if source_root.is_symlink():
         raise BundleBuildError("source root must not be a symlink")
     source_root = source_root.resolve()
@@ -209,7 +237,7 @@ def build_model_bundle(
         raise BundleBuildError("source contains no supported model artifact")
 
     malware_scan = (
-        None if scan_report is None else _clean_scan_attestation(scan_report, len(manifest_files))
+        None if scan_report is None else _clean_scan_attestation(scan_report, manifest_files)
     )
     if scan_report is not None and signing_key is None:
         raise BundleBuildError("scan attestation requires a signing key")
