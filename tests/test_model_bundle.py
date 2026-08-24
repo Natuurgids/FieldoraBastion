@@ -24,6 +24,23 @@ def _signing_key(path: Path) -> tuple[Path, Ed25519PrivateKey]:
     return path, private
 
 
+def _scan_report(path: Path, *, result: str = "clean", file_count: int = 1) -> Path:
+    path.write_text(
+        json.dumps(
+            {
+                "result": result,
+                "scanner": "clamav",
+                "scanner_version": "1.4.0",
+                "definitions": "daily-12345",
+                "scanned_at": "2026-08-24T17:00:00Z",
+                "file_count": file_count,
+            }
+        ),
+        encoding="utf-8",
+    )
+    return path
+
+
 def test_builds_fieldora_compatible_model_manifest(tmp_path: Path) -> None:
     source = tmp_path / "source"
     (source / "model").mkdir(parents=True)
@@ -72,6 +89,66 @@ def test_signs_exact_manifest_with_ed25519(tmp_path: Path) -> None:
         base64.b64decode(envelope["signature"]),
         (built.root / "manifest.json").read_bytes(),
     )
+
+
+def test_binds_clean_scan_attestation_into_signed_manifest(tmp_path: Path) -> None:
+    source = tmp_path / "source"
+    source.mkdir()
+    (source / "model.gguf").write_bytes(b"model")
+    key_path, private = _signing_key(tmp_path / "bastion-signing.pem")
+    report = _scan_report(tmp_path / "scan.json")
+
+    built = build_model_bundle(
+        source,
+        tmp_path / "out",
+        model_id="bio-model",
+        version="1.2.3",
+        signing_key=key_path,
+        scan_report=report,
+    )
+
+    manifest_bytes = (built.root / "manifest.json").read_bytes()
+    manifest = json.loads(manifest_bytes)
+    scan = manifest["inspection"]["malware_scan"]
+    assert scan["result"] == "clean"
+    assert scan["scanner"] == "clamav"
+    assert scan["file_count"] == 1
+    envelope = json.loads((built.root / "manifest.sig").read_text(encoding="utf-8"))
+    private.public_key().verify(base64.b64decode(envelope["signature"]), manifest_bytes)
+
+
+def test_scan_attestation_requires_clean_result_matching_payload_and_signature(tmp_path: Path) -> None:
+    source = tmp_path / "source"
+    source.mkdir()
+    (source / "model.gguf").write_bytes(b"model")
+    key_path, _private = _signing_key(tmp_path / "bastion-signing.pem")
+
+    with pytest.raises(BundleBuildError, match="clean result"):
+        build_model_bundle(
+            source,
+            tmp_path / "infected-out",
+            model_id="m",
+            version="1",
+            signing_key=key_path,
+            scan_report=_scan_report(tmp_path / "infected.json", result="infected"),
+        )
+    with pytest.raises(BundleBuildError, match="file_count"):
+        build_model_bundle(
+            source,
+            tmp_path / "count-out",
+            model_id="m",
+            version="1",
+            signing_key=key_path,
+            scan_report=_scan_report(tmp_path / "count.json", file_count=2),
+        )
+    with pytest.raises(BundleBuildError, match="requires a signing key"):
+        build_model_bundle(
+            source,
+            tmp_path / "unsigned-out",
+            model_id="m",
+            version="1",
+            scan_report=_scan_report(tmp_path / "unsigned.json"),
+        )
 
 
 def test_rejects_non_ed25519_signing_key(tmp_path: Path) -> None:
