@@ -20,6 +20,11 @@ def _parser() -> argparse.ArgumentParser:
     build.add_argument("--source-id", default="fieldora-bastion")
     build.add_argument("--license-id", default="unspecified")
     build.add_argument("--max-bytes", type=int, default=64 * 1024 * 1024 * 1024)
+    build.add_argument(
+        "--signing-key",
+        type=Path,
+        help="Ed25519 private key PEM used to emit manifest.sig; key material is never copied.",
+    )
     return parser
 
 
@@ -34,6 +39,7 @@ def main(argv: list[str] | None = None) -> int:
             source=args.source_id,
             license_id=args.license_id,
             max_total_bytes=args.max_bytes,
+            signing_key=args.signing_key,
         )
     except BundleBuildError as exc:
         print(json.dumps({"ok": False, "error": str(exc)}, separators=(",", ":")))
@@ -47,6 +53,8 @@ def main(argv: list[str] | None = None) -> int:
                 "file_count": built.file_count,
                 "total_bytes": built.total_bytes,
                 "bundle": str(built.root),
+                "manifest_signature": "ed25519" if built.signing_key_id else "unsigned",
+                "signing_key_id": built.signing_key_id,
             },
             separators=(",", ":"),
         )
