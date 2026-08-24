@@ -24,7 +24,18 @@ def _signing_key(path: Path) -> tuple[Path, Ed25519PrivateKey]:
     return path, private
 
 
-def _scan_report(path: Path, *, result: str = "clean", file_count: int = 1) -> Path:
+def _payload_digest(path: str, content: bytes) -> str:
+    file_sha = hashlib.sha256(content).hexdigest()
+    return hashlib.sha256(f"{path}\0{len(content)}\0{file_sha}\n".encode()).hexdigest()
+
+
+def _scan_report(
+    path: Path,
+    *,
+    result: str = "clean",
+    file_count: int = 1,
+    payload_sha256: str | None = None,
+) -> Path:
     path.write_text(
         json.dumps(
             {
@@ -34,6 +45,7 @@ def _scan_report(path: Path, *, result: str = "clean", file_count: int = 1) -> P
                 "definitions": "daily-12345",
                 "scanned_at": "2026-08-24T17:00:00Z",
                 "file_count": file_count,
+                "payload_sha256": payload_sha256 or _payload_digest("model.gguf", b"model"),
             }
         ),
         encoding="utf-8",
@@ -113,8 +125,29 @@ def test_binds_clean_scan_attestation_into_signed_manifest(tmp_path: Path) -> No
     assert scan["result"] == "clean"
     assert scan["scanner"] == "clamav"
     assert scan["file_count"] == 1
+    assert scan["payload_sha256"] == _payload_digest("model.gguf", b"model")
     envelope = json.loads((built.root / "manifest.sig").read_text(encoding="utf-8"))
     private.public_key().verify(base64.b64decode(envelope["signature"]), manifest_bytes)
+
+
+def test_scan_attestation_rejects_payload_changed_after_scan(tmp_path: Path) -> None:
+    source = tmp_path / "source"
+    source.mkdir()
+    model = source / "model.gguf"
+    model.write_bytes(b"model")
+    key_path, _private = _signing_key(tmp_path / "bastion-signing.pem")
+    report = _scan_report(tmp_path / "scan.json")
+    model.write_bytes(b"other")
+
+    with pytest.raises(BundleBuildError, match="payload digest does not match"):
+        build_model_bundle(
+            source,
+            tmp_path / "out",
+            model_id="m",
+            version="1",
+            signing_key=key_path,
+            scan_report=report,
+        )
 
 
 def test_scan_attestation_requires_clean_result_matching_payload_and_signature(tmp_path: Path) -> None:
