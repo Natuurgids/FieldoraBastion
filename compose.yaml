@@ -1,0 +1,27 @@
+services:
+  model-bundle-builder:
+    build:
+      context: .
+      dockerfile: Containerfile
+    image: fieldora-bastion:local
+    profiles: ["tools"]
+    network_mode: none
+    read_only: true
+    user: "10001:10001"
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,nodev,size=64m
+    volumes:
+      - ./quarantine:/quarantine:ro
+      - ./approved:/approved:rw
+    command:
+      - build-model-bundle
+      - /quarantine/model
+      - /approved
+      - --model-id
+      - example-model
+      - --version
+      - 1.0.0
