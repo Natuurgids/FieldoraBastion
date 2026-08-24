@@ -25,6 +25,14 @@ def _parser() -> argparse.ArgumentParser:
         type=Path,
         help="Ed25519 private key PEM used to emit manifest.sig; key material is never copied.",
     )
+    build.add_argument(
+        "--scan-report",
+        type=Path,
+        help=(
+            "JSON clean-scan attestation produced by an approved malware scanner; "
+            "requires --signing-key so the attestation is bound to manifest.sig."
+        ),
+    )
     return parser
 
 
@@ -40,6 +48,7 @@ def main(argv: list[str] | None = None) -> int:
             license_id=args.license_id,
             max_total_bytes=args.max_bytes,
             signing_key=args.signing_key,
+            scan_report=args.scan_report,
         )
     except BundleBuildError as exc:
         print(json.dumps({"ok": False, "error": str(exc)}, separators=(",", ":")))
