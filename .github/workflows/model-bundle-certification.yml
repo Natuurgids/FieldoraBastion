@@ -63,14 +63,18 @@ jobs:
           text = Path('src/fieldora_bastion/model_bundle.py').read_text()
           for required in (
               'Ed25519PrivateKey', 'manifest.sig', 'algorithm": "ed25519"', 'key_id',
-              'malware_scan', 'scan report must attest a clean result',
+              'malware_scan', 'payload_sha256', 'scan report must attest a clean result',
               'scan report file_count does not match bundle payload',
+              'scan report payload digest does not match bundle payload',
               'scan attestation requires a signing key',
           ):
               if required not in text:
                   raise SystemExit(f'missing Bastion trust-boundary marker: {required}')
           scanner = Path('src/fieldora_bastion/scanner.py').read_text()
-          for required in ('clamscan', 'shell', '--recursive', 'scan source must not contain symlinks'):
+          for required in (
+              'clamscan', 'shell', '--recursive', 'scan source must not contain symlinks',
+              'payload_sha256', '_payload_tree_sha256',
+          ):
               if required not in scanner:
                   raise SystemExit(f'missing scanner boundary marker: {required}')
           if 'shell=True' in scanner:
