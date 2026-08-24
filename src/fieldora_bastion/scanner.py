@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 import shutil
 import subprocess
@@ -18,7 +19,23 @@ class ScanError(RuntimeError):
     """Raised when a quarantine payload cannot be safely scanned."""
 
 
-def _preflight(root: Path, max_total_bytes: int) -> int:
+def _file_sha256(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as stream:
+        for chunk in iter(lambda: stream.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def _payload_tree_sha256(entries: list[tuple[str, int, str]]) -> str:
+    """Digest canonical path/size/content-hash tuples for scan/build binding."""
+    digest = hashlib.sha256()
+    for path, size, sha256 in sorted(entries):
+        digest.update(f"{path}\0{size}\0{sha256}\n".encode("utf-8"))
+    return digest.hexdigest()
+
+
+def _preflight(root: Path, max_total_bytes: int) -> tuple[int, str]:
     if max_total_bytes <= 0:
         raise ScanError("maximum scan size must be positive")
     if root.is_symlink():
@@ -32,17 +49,21 @@ def _preflight(root: Path, max_total_bytes: int) -> int:
     if len(files) > _MAX_FILES:
         raise ScanError("scan source contains too many files")
     total = 0
+    entries: list[tuple[str, int, str]] = []
     for path in files:
         if path.is_symlink():
             raise ScanError("scan source must not contain symlinks")
         try:
-            path.resolve(strict=True).relative_to(root)
+            resolved = path.resolve(strict=True)
+            relative = resolved.relative_to(root).as_posix()
         except (OSError, ValueError) as exc:
             raise ScanError("scan source file escapes source root") from exc
-        total += path.stat().st_size
+        size = path.stat().st_size
+        total += size
         if total > max_total_bytes:
             raise ScanError("scan source exceeds configured maximum total size")
-    return len(files)
+        entries.append((relative, size, _file_sha256(path)))
+    return len(files), _payload_tree_sha256(entries)
 
 
 def _safe_report_path(report_path: Path, source_root: Path) -> Path:
@@ -78,7 +99,7 @@ def scan_with_clamav(
     ClamAV definitions are supplied from a read-only directory. The adapter does
     not update definitions and never invokes a shell.
     """
-    file_count = _preflight(source_root, max_total_bytes)
+    file_count, payload_sha256 = _preflight(source_root, max_total_bytes)
     executable = shutil.which("clamscan")
     if not executable:
         raise ScanError("clamscan is unavailable")
@@ -123,6 +144,7 @@ def scan_with_clamav(
         "definitions": version_text,
         "scanned_at": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
         "file_count": file_count,
+        "payload_sha256": payload_sha256,
     }
     destination = _safe_report_path(report_path, source_root)
     destination.write_text(
