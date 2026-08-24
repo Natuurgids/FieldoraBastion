@@ -19,6 +19,8 @@ class ScanError(RuntimeError):
 
 
 def _preflight(root: Path, max_total_bytes: int) -> int:
+    if max_total_bytes <= 0:
+        raise ScanError("maximum scan size must be positive")
     if root.is_symlink():
         raise ScanError("scan source root must not be a symlink")
     root = root.resolve()
@@ -41,6 +43,27 @@ def _preflight(root: Path, max_total_bytes: int) -> int:
         if total > max_total_bytes:
             raise ScanError("scan source exceeds configured maximum total size")
     return len(files)
+
+
+def _safe_report_path(report_path: Path, source_root: Path) -> Path:
+    """Resolve an output path without allowing a pre-existing symlink escape."""
+    if report_path.is_symlink():
+        raise ScanError("scan report path must not be a symlink")
+    parent = report_path.parent
+    if parent.is_symlink():
+        raise ScanError("scan report parent must not be a symlink")
+    parent.mkdir(parents=True, exist_ok=True)
+    try:
+        resolved_parent = parent.resolve(strict=True)
+    except OSError as exc:
+        raise ScanError("scan report parent is unavailable") from exc
+    resolved = resolved_parent / report_path.name
+    source = source_root.resolve()
+    try:
+        resolved.relative_to(source)
+    except ValueError:
+        return resolved
+    raise ScanError("scan report must be written outside the scanned payload")
 
 
 def scan_with_clamav(
@@ -101,16 +124,8 @@ def scan_with_clamav(
         "scanned_at": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
         "file_count": file_count,
     }
-    report_path = report_path.resolve()
-    source = source_root.resolve()
-    try:
-        report_path.relative_to(source)
-    except ValueError:
-        pass
-    else:
-        raise ScanError("scan report must be written outside the scanned payload")
-    report_path.parent.mkdir(parents=True, exist_ok=True)
-    report_path.write_text(
+    destination = _safe_report_path(report_path, source_root)
+    destination.write_text(
         json.dumps(report, sort_keys=True, separators=(",", ":")) + "\n",
         encoding="utf-8",
     )
