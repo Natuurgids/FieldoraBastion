@@ -44,6 +44,7 @@ _FORBIDDEN_EXTENSIONS = {
 _MAX_FILES = 10_000
 _MAX_TOTAL_BYTES = 64 * 1024 * 1024 * 1024
 _MAX_METADATA_TEXT = 2_048
+_MAX_SCAN_REPORT_BYTES = 64 * 1024
 
 
 class BundleBuildError(ValueError):
@@ -84,6 +85,46 @@ def _sha256(path: Path) -> str:
     return digest.hexdigest()
 
 
+def _clean_scan_attestation(scan_report: Path, file_count: int) -> dict[str, object]:
+    if scan_report.is_symlink() or not scan_report.is_file():
+        raise BundleBuildError("scan report must be a regular non-symlink file")
+    try:
+        if scan_report.stat().st_size > _MAX_SCAN_REPORT_BYTES:
+            raise BundleBuildError("scan report exceeds the configured size limit")
+        report = json.loads(scan_report.read_text(encoding="utf-8"))
+    except BundleBuildError:
+        raise
+    except (OSError, json.JSONDecodeError) as exc:
+        raise BundleBuildError("scan report is unreadable or invalid JSON") from exc
+    if not isinstance(report, dict):
+        raise BundleBuildError("scan report must contain an object")
+    result = str(report.get("result") or "").strip().lower()
+    if result != "clean":
+        raise BundleBuildError("scan report must attest a clean result")
+    try:
+        scanned_files = int(report.get("file_count"))
+    except (TypeError, ValueError) as exc:
+        raise BundleBuildError("scan report file_count is invalid") from exc
+    if scanned_files != file_count:
+        raise BundleBuildError("scan report file_count does not match bundle payload")
+    scanner = _metadata(str(report.get("scanner") or ""), "scanner", "unknown")
+    scanner_version = _metadata(
+        str(report.get("scanner_version") or ""), "scanner_version", "unknown"
+    )
+    definitions = _metadata(
+        str(report.get("definitions") or ""), "definitions", "unknown"
+    )
+    scanned_at = _metadata(str(report.get("scanned_at") or ""), "scanned_at", "unknown")
+    return {
+        "result": "clean",
+        "scanner": scanner,
+        "scanner_version": scanner_version,
+        "definitions": definitions,
+        "scanned_at": scanned_at,
+        "file_count": scanned_files,
+    }
+
+
 def _sign_manifest(manifest_bytes: bytes, signing_key: Path) -> tuple[str, str]:
     if signing_key.is_symlink() or not signing_key.is_file():
         raise BundleBuildError("signing key must be a regular non-symlink file")
@@ -113,11 +154,13 @@ def build_model_bundle(
     license_id: str = "unspecified",
     max_total_bytes: int = _MAX_TOTAL_BYTES,
     signing_key: Path | None = None,
+    scan_report: Path | None = None,
 ) -> BuiltModelBundle:
     """Copy pre-vetted model files and emit the trusted-side manifest contract.
 
     This function does not download, execute, or malware-scan content. Acquisition
-    and scanning must complete before this builder is called.
+    and scanning must complete before this builder is called. When supplied, a clean
+    scanner report is validated and embedded into the manifest before signing.
     """
     if source_root.is_symlink():
         raise BundleBuildError("source root must not be a symlink")
@@ -165,6 +208,12 @@ def build_model_bundle(
     if model_artifacts == 0:
         raise BundleBuildError("source contains no supported model artifact")
 
+    malware_scan = (
+        None if scan_report is None else _clean_scan_attestation(scan_report, len(manifest_files))
+    )
+    if scan_report is not None and signing_key is None:
+        raise BundleBuildError("scan attestation requires a signing key")
+
     destination = output_root.resolve() / f"{model_id}-{version}"
     if destination.exists():
         raise BundleBuildError("bundle destination already exists")
@@ -176,13 +225,15 @@ def build_model_bundle(
             target = destination.joinpath(*relative.parts)
             target.parent.mkdir(parents=True, exist_ok=True)
             shutil.copyfile(source_path, target, follow_symlinks=False)
-        manifest = {
+        manifest: dict[str, object] = {
             "model_id": model_id,
             "version": version,
             "source": provenance,
             "license_id": license_name,
             "files": manifest_files,
         }
+        if malware_scan is not None:
+            manifest["inspection"] = {"malware_scan": malware_scan}
         manifest_bytes = (
             json.dumps(manifest, ensure_ascii=False, sort_keys=True, indent=2) + "\n"
         ).encode("utf-8")
