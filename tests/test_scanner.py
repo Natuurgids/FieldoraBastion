@@ -90,3 +90,46 @@ def test_scan_rejects_symlink_and_report_inside_payload(tmp_path: Path, monkeypa
     )
     with pytest.raises(ScanError, match="outside"):
         scan_with_clamav(source, source / "scan.json", database_dir=database)
+
+
+def test_scan_rejects_symlink_report_destination(tmp_path: Path, monkeypatch) -> None:
+    source = tmp_path / "source"
+    source.mkdir()
+    (source / "model.gguf").write_bytes(b"model")
+    database = tmp_path / "db"
+    database.mkdir()
+    outside = tmp_path / "outside.json"
+    outside.write_text("do not replace", encoding="utf-8")
+    report = tmp_path / "scan.json"
+    try:
+        report.symlink_to(outside)
+    except OSError:
+        pytest.skip("symlinks are unavailable on this platform")
+    monkeypatch.setattr(scanner.shutil, "which", lambda _name: "/usr/bin/clamscan")
+    monkeypatch.setattr(
+        scanner.subprocess,
+        "run",
+        lambda args, **_kwargs: subprocess.CompletedProcess(
+            args, 0, stdout="ClamAV 1.4.0/12345/test\n" if "--version" in args else ""
+        ),
+    )
+
+    with pytest.raises(ScanError, match="report path must not be a symlink"):
+        scan_with_clamav(source, report, database_dir=database)
+    assert outside.read_text(encoding="utf-8") == "do not replace"
+
+
+def test_scan_requires_positive_size_limit(tmp_path: Path) -> None:
+    source = tmp_path / "source"
+    source.mkdir()
+    (source / "model.gguf").write_bytes(b"model")
+    database = tmp_path / "db"
+    database.mkdir()
+
+    with pytest.raises(ScanError, match="must be positive"):
+        scan_with_clamav(
+            source,
+            tmp_path / "scan.json",
+            database_dir=database,
+            max_total_bytes=0,
+        )
