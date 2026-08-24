@@ -1,4 +1,30 @@
 services:
+  model-scanner:
+    build:
+      context: .
+      dockerfile: Containerfile
+    image: fieldora-bastion:local
+    profiles: ["tools"]
+    network_mode: none
+    read_only: true
+    user: "10001:10001"
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,nodev,size=64m
+    volumes:
+      - ./quarantine:/quarantine:ro
+      - ./approved:/approved:rw
+      - ./scanner-db:/var/lib/clamav:ro
+    command:
+      - scan-model-source
+      - /quarantine/model
+      - /approved/model-scan.json
+      - --database
+      - /var/lib/clamav
+
   model-bundle-builder:
     build:
       context: .
@@ -17,6 +43,7 @@ services:
     volumes:
       - ./quarantine:/quarantine:ro
       - ./approved:/approved:rw
+      - ./signing:/signing:ro
     command:
       - build-model-bundle
       - /quarantine/model
@@ -25,3 +52,7 @@ services:
       - example-model
       - --version
       - 1.0.0
+      - --scan-report
+      - /approved/model-scan.json
+      - --signing-key
+      - /signing/model-bundle-ed25519.pem
