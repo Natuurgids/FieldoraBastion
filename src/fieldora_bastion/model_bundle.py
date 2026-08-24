@@ -2,11 +2,15 @@
 
 from __future__ import annotations
 
+import base64
 import hashlib
 import json
 import shutil
 from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
+
+from cryptography.hazmat.primitives import serialization
+from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 
 _MODEL_EXTENSIONS = {".safetensors", ".onnx", ".gguf"}
 _SUPPORT_EXTENSIONS = {
@@ -53,6 +57,7 @@ class BuiltModelBundle:
     version: str
     total_bytes: int
     file_count: int
+    signing_key_id: str = ""
 
 
 def _token(value: str, field: str) -> str:
@@ -79,6 +84,25 @@ def _sha256(path: Path) -> str:
     return digest.hexdigest()
 
 
+def _sign_manifest(manifest_bytes: bytes, signing_key: Path) -> tuple[str, str]:
+    if signing_key.is_symlink() or not signing_key.is_file():
+        raise BundleBuildError("signing key must be a regular non-symlink file")
+    try:
+        key = serialization.load_pem_private_key(signing_key.read_bytes(), password=None)
+    except (OSError, TypeError, ValueError) as exc:
+        raise BundleBuildError("signing key is unreadable or invalid") from exc
+    if not isinstance(key, Ed25519PrivateKey):
+        raise BundleBuildError("signing key must be an Ed25519 private key")
+    public = key.public_key()
+    public_der = public.public_bytes(
+        serialization.Encoding.DER,
+        serialization.PublicFormat.SubjectPublicKeyInfo,
+    )
+    key_id = hashlib.sha256(public_der).hexdigest()[:32]
+    signature = base64.b64encode(key.sign(manifest_bytes)).decode("ascii")
+    return key_id, signature
+
+
 def build_model_bundle(
     source_root: Path,
     output_root: Path,
@@ -88,6 +112,7 @@ def build_model_bundle(
     source: str = "fieldora-bastion",
     license_id: str = "unspecified",
     max_total_bytes: int = _MAX_TOTAL_BYTES,
+    signing_key: Path | None = None,
 ) -> BuiltModelBundle:
     """Copy pre-vetted model files and emit the trusted-side manifest contract.
 
@@ -158,11 +183,34 @@ def build_model_bundle(
             "license_id": license_name,
             "files": manifest_files,
         }
-        (destination / "manifest.json").write_text(
-            json.dumps(manifest, ensure_ascii=False, sort_keys=True, indent=2) + "\n",
-            encoding="utf-8",
-        )
+        manifest_bytes = (
+            json.dumps(manifest, ensure_ascii=False, sort_keys=True, indent=2) + "\n"
+        ).encode("utf-8")
+        (destination / "manifest.json").write_bytes(manifest_bytes)
+        signing_key_id = ""
+        if signing_key is not None:
+            signing_key_id, signature = _sign_manifest(manifest_bytes, signing_key)
+            (destination / "manifest.sig").write_text(
+                json.dumps(
+                    {
+                        "algorithm": "ed25519",
+                        "key_id": signing_key_id,
+                        "signature": signature,
+                    },
+                    sort_keys=True,
+                    separators=(",", ":"),
+                )
+                + "\n",
+                encoding="utf-8",
+            )
     except BaseException:
         shutil.rmtree(destination, ignore_errors=True)
         raise
-    return BuiltModelBundle(destination, model_id, version, total, len(manifest_files))
+    return BuiltModelBundle(
+        destination,
+        model_id,
+        version,
+        total,
+        len(manifest_files),
+        signing_key_id,
+    )
