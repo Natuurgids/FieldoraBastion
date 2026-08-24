@@ -7,11 +7,19 @@ import json
 from pathlib import Path
 
 from fieldora_bastion.model_bundle import BundleBuildError, build_model_bundle
+from fieldora_bastion.scanner import ScanError, scan_with_clamav
 
 
 def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="fieldora-bastion")
     sub = parser.add_subparsers(dest="command", required=True)
+
+    scan = sub.add_parser("scan-model-source")
+    scan.add_argument("source", type=Path)
+    scan.add_argument("report", type=Path)
+    scan.add_argument("--database", type=Path, required=True)
+    scan.add_argument("--max-bytes", type=int, default=64 * 1024 * 1024 * 1024)
+
     build = sub.add_parser("build-model-bundle")
     build.add_argument("source", type=Path)
     build.add_argument("output", type=Path)
@@ -38,6 +46,20 @@ def _parser() -> argparse.ArgumentParser:
 
 def main(argv: list[str] | None = None) -> int:
     args = _parser().parse_args(argv)
+    if args.command == "scan-model-source":
+        try:
+            report = scan_with_clamav(
+                args.source,
+                args.report,
+                database_dir=args.database,
+                max_total_bytes=args.max_bytes,
+            )
+        except ScanError as exc:
+            print(json.dumps({"ok": False, "error": str(exc)}, separators=(",", ":")))
+            return 2
+        print(json.dumps({"ok": True, **report}, separators=(",", ":")))
+        return 0
+
     try:
         built = build_model_bundle(
             args.source,
