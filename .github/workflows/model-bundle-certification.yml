@@ -36,14 +36,15 @@ jobs:
       - run: python -m pip install --upgrade pip && python -m pip install -e ".[dev]"
       - name: Ruff
         run: python -m ruff check src/fieldora_bastion tests/test_model_bundle.py
-      - name: Bundle builder security and signing tests
+      - name: Bundle builder security signing and scan-attestation tests
         run: python -m pytest -q tests/test_model_bundle.py
       - name: CLI contract
         run: |
           fieldora-bastion --help >/dev/null
           fieldora-bastion build-model-bundle --help >/dev/null
           fieldora-bastion build-model-bundle --help | grep -- '--signing-key' >/dev/null
-      - name: Certify Fieldora model and signature boundary
+          fieldora-bastion build-model-bundle --help | grep -- '--scan-report' >/dev/null
+      - name: Certify Fieldora model signature and scan boundary
         run: |
           python - <<'PY'
           from pathlib import Path
@@ -53,12 +54,17 @@ jobs:
           required_forbidden = {'.py', '.pkl', '.pickle', '.pt', '.pth', '.bin', '.sh', '.ps1', '.exe'}
           if not required_forbidden <= m._FORBIDDEN_EXTENSIONS:
               raise SystemExit('executable/pickle rejection boundary is incomplete')
-          if m._MAX_FILES > 10000:
-              raise SystemExit('file-count bound is unexpectedly broad')
+          if m._MAX_FILES > 10000 or m._MAX_SCAN_REPORT_BYTES > 64 * 1024:
+              raise SystemExit('bundle or scan-attestation bounds are unexpectedly broad')
           text = Path('src/fieldora_bastion/model_bundle.py').read_text()
-          for required in ('Ed25519PrivateKey', 'manifest.sig', 'algorithm": "ed25519"', 'key_id'):
+          for required in (
+              'Ed25519PrivateKey', 'manifest.sig', 'algorithm": "ed25519"', 'key_id',
+              'malware_scan', 'scan report must attest a clean result',
+              'scan report file_count does not match bundle payload',
+              'scan attestation requires a signing key',
+          ):
               if required not in text:
-                  raise SystemExit(f'missing Bastion signing marker: {required}')
+                  raise SystemExit(f'missing Bastion trust-boundary marker: {required}')
           PY
       - name: Certify isolated container contract
         run: |
