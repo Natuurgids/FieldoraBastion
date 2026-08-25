@@ -56,3 +56,63 @@ services:
       - /approved/model-scan.json
       - --signing-key
       - /signing/model-bundle-ed25519.pem
+
+  map-scanner:
+    build:
+      context: .
+      dockerfile: Containerfile
+    image: fieldora-bastion:local
+    profiles: ["tools"]
+    network_mode: none
+    read_only: true
+    user: "10001:10001"
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,nodev,size=64m
+    volumes:
+      - ./quarantine:/quarantine:ro
+      - ./approved:/approved:rw
+      - ./scanner-db:/var/lib/clamav:ro
+    command:
+      - scan-map-source
+      - /quarantine/maps
+      - /approved/map-scan.json
+      - --database
+      - /var/lib/clamav
+      - --max-bytes
+      - "274877906944"
+
+  map-bundle-builder:
+    build:
+      context: .
+      dockerfile: Containerfile
+    image: fieldora-bastion:local
+    profiles: ["tools"]
+    network_mode: none
+    read_only: true
+    user: "10001:10001"
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,nodev,size=64m
+    volumes:
+      - ./quarantine:/quarantine:ro
+      - ./approved:/approved:rw
+      - ./signing:/signing:ro
+    command:
+      - build-map-bundle
+      - /quarantine/maps
+      - /approved
+      - --map-id
+      - example-map
+      - --version
+      - 1.0.0
+      - --scan-report
+      - /approved/map-scan.json
+      - --signing-key
+      - /signing/model-bundle-ed25519.pem
