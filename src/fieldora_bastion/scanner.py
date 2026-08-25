@@ -6,7 +6,7 @@ import hashlib
 import json
 import shutil
 import subprocess
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 _MAX_FILES = 10_000
@@ -31,7 +31,7 @@ def _payload_tree_sha256(entries: list[tuple[str, int, str]]) -> str:
     """Digest canonical path/size/content-hash tuples for scan/build binding."""
     digest = hashlib.sha256()
     for path, size, sha256 in sorted(entries):
-        digest.update(f"{path}\0{size}\0{sha256}\n".encode("utf-8"))
+        digest.update(f"{path}\0{size}\0{sha256}\n".encode())
     return digest.hexdigest()
 
 
@@ -142,7 +142,7 @@ def scan_with_clamav(
         "scanner": "clamav",
         "scanner_version": version_text,
         "definitions": version_text,
-        "scanned_at": datetime.now(timezone.utc).isoformat().replace("+00:00", "Z"),
+        "scanned_at": datetime.now(UTC).isoformat().replace("+00:00", "Z"),
         "file_count": file_count,
         "payload_sha256": payload_sha256,
     }
