@@ -91,7 +91,11 @@ def build_map_bundle(
     provenance = _metadata(source, "source", "fieldora-bastion")
     license_name = _metadata(license_id, "license_id", "unspecified")
 
-    files = sorted(path for path in source_root.rglob("*") if path.is_file() or path.is_symlink())
+    files = sorted(
+        path
+        for path in source_root.rglob("*")
+        if path.is_file() or path.is_symlink()
+    )
     if not files:
         raise BundleBuildError("source contains no files")
     if len(files) > _MAX_FILES:
@@ -110,7 +114,9 @@ def build_map_bundle(
             raise BundleBuildError("source file escapes source root") from exc
         suffix = relative.suffix.lower()
         if suffix in _FORBIDDEN_EXTENSIONS or suffix not in _MAP_EXTENSIONS:
-            raise BundleBuildError(f"unsupported or executable map file: {relative.as_posix()}")
+            raise BundleBuildError(
+                f"unsupported or executable map file: {relative.as_posix()}"
+            )
         if suffix in {".mbtiles", ".pmtiles", ".gpkg", ".pbf"}:
             primary_map_files += 1
         size = path.stat().st_size
@@ -118,12 +124,20 @@ def build_map_bundle(
         if total > max_total_bytes:
             raise BundleBuildError("map bundle exceeds configured maximum total size")
         manifest_files.append(
-            {"path": relative.as_posix(), "sha256": _sha256(path), "size_bytes": size}
+            {
+                "path": relative.as_posix(),
+                "sha256": _sha256(path),
+                "size_bytes": size,
+            }
         )
     if primary_map_files == 0:
         raise BundleBuildError("source contains no supported primary map artifact")
 
-    malware_scan = None if scan_report is None else _clean_scan_attestation(scan_report, manifest_files)
+    malware_scan = (
+        None
+        if scan_report is None
+        else _clean_scan_attestation(scan_report, manifest_files)
+    )
     if scan_report is not None and signing_key is None:
         raise BundleBuildError("scan attestation requires a signing key")
 
@@ -148,17 +162,35 @@ def build_map_bundle(
             "artifact_total_bytes": total,
         }
         if malware_scan is not None:
-            manifest["malware_scan"] = malware_scan
-        manifest_bytes = (json.dumps(manifest, sort_keys=True, separators=(",", ":")) + "\n").encode()
+            manifest["inspection"] = {"malware_scan": malware_scan}
+        manifest_bytes = (
+            json.dumps(manifest, ensure_ascii=False, sort_keys=True, indent=2) + "\n"
+        ).encode("utf-8")
+        (destination / "manifest.json").write_bytes(manifest_bytes)
         signing_key_id = ""
         if signing_key is not None:
             signing_key_id, signature = _sign_manifest(manifest_bytes, signing_key)
-            manifest["signature"] = {"algorithm": "ed25519", "key_id": signing_key_id}
-            manifest_bytes = (json.dumps(manifest, sort_keys=True, separators=(",", ":")) + "\n").encode()
-            _, signature = _sign_manifest(manifest_bytes, signing_key)
-            (destination / "manifest.sig").write_text(signature + "\n", encoding="ascii")
-        (destination / "manifest.json").write_bytes(manifest_bytes)
+            (destination / "manifest.sig").write_text(
+                json.dumps(
+                    {
+                        "algorithm": "ed25519",
+                        "key_id": signing_key_id,
+                        "signature": signature,
+                    },
+                    sort_keys=True,
+                    separators=(",", ":"),
+                )
+                + "\n",
+                encoding="utf-8",
+            )
     except BaseException:
         shutil.rmtree(destination, ignore_errors=True)
         raise
-    return BuiltMapBundle(destination, map_id, version, total, len(manifest_files), signing_key_id)
+    return BuiltMapBundle(
+        destination,
+        map_id,
+        version,
+        total,
+        len(manifest_files),
+        signing_key_id,
+    )
