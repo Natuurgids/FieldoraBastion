@@ -6,7 +6,6 @@ identity tokens, credentials, or signing keys.
 
 from __future__ import annotations
 
-from dataclasses import asdict
 from pathlib import Path
 import sqlite3
 
