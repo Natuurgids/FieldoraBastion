@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import json
 import sqlite3
+from dataclasses import dataclass
 from pathlib import Path
 
 from fieldora_bastion.transfer_broker import (
@@ -15,9 +16,18 @@ from fieldora_bastion.transfer_broker import (
     BroadcastDescriptor,
     BrokerError,
     CollectionReceipt,
+    RequestKind,
     TransferRequest,
     TransferState,
 )
+
+
+@dataclass(frozen=True, slots=True)
+class StoredTransfer:
+    request: TransferRequest
+    state: TransferState
+    claimed_by: str | None
+    package: ApprovedPackage | None
 
 
 class AtomicTransferStore:
@@ -132,6 +142,35 @@ class AtomicTransferStore:
             },
             sort_keys=True,
             separators=(",", ":"),
+        )
+
+    @staticmethod
+    def _decode_request(encoded: str) -> TransferRequest:
+        payload = json.loads(encoded)
+        payload["kind"] = RequestKind(payload["kind"])
+        payload["audience"] = tuple(payload["audience"])
+        return TransferRequest(**payload)
+
+    @staticmethod
+    def _decode_package(encoded: str | None) -> ApprovedPackage | None:
+        return None if encoded is None else ApprovedPackage(**json.loads(encoded))
+
+    def transfers(self) -> tuple[StoredTransfer, ...]:
+        with self._connect() as connection:
+            rows = connection.execute(
+                """
+                SELECT request_json, state, claimed_by, package_json
+                FROM transfers ORDER BY request_id
+                """
+            ).fetchall()
+        return tuple(
+            StoredTransfer(
+                request=self._decode_request(row["request_json"]),
+                state=TransferState(row["state"]),
+                claimed_by=row["claimed_by"],
+                package=self._decode_package(row["package_json"]),
+            )
+            for row in rows
         )
 
     def save_transfer(
