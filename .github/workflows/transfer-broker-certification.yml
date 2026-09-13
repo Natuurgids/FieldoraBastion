@@ -34,8 +34,8 @@ jobs:
           from pathlib import Path
           text = Path('src/fieldora_bastion/transfer_broker.py').read_text()
           for needle in (
-              'RequestKind.COLLECTION',
-              'RequestKind.DELIVERY',
+              'COLLECTION = "collection"',
+              'DELIVERY = "delivery"',
               'TransferState.QUARANTINED',
               'TransferState.SCANNING',
               'TransferState.VERIFYING',
