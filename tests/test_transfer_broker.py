@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import pytest
+
 from fieldora_bastion.transfer_broker import (
     ApprovedPackage,
     BrokerError,
