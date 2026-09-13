@@ -1,9 +1,9 @@
 """Secure transfer-broker contract for FieldoraBastion.
 
-The broker accepts collection or delivery requests, keeps received content in a
-quarantine lifecycle, and only broadcasts immutable package descriptors after
-independent scanning and verification have succeeded. The browser or collector
-cannot mark content clean; approval requires signed, clean-scan package metadata.
+The broker accepts collection or delivery requests, quarantines externally sourced
+bytes, and only broadcasts immutable package descriptors after scanning and
+verification have succeeded. Collector verification is mandatory after transfer;
+a digest mismatch is a terminal integrity failure, never a successful collection.
 """
 
 from __future__ import annotations
@@ -34,7 +34,10 @@ class TransferState(StrEnum):
     APPROVED = "approved"
     BROADCAST = "broadcast"
     CLAIMED = "claimed"
-    COLLECTED = "collected"
+    TRANSFERRED = "transferred"
+    COLLECTOR_VERIFYING = "collector-verifying"
+    ACCEPTED = "accepted"
+    INTEGRITY_FAILED = "integrity-failed"
     REJECTED = "rejected"
     EXPIRED = "expired"
     CANCELLED = "cancelled"
@@ -42,7 +45,8 @@ class TransferState(StrEnum):
 
 
 _TERMINAL = {
-    TransferState.COLLECTED,
+    TransferState.ACCEPTED,
+    TransferState.INTEGRITY_FAILED,
     TransferState.REJECTED,
     TransferState.EXPIRED,
     TransferState.CANCELLED,
@@ -84,9 +88,19 @@ _ALLOWED: dict[TransferState, set[TransferState]] = {
         TransferState.FAILED,
     },
     TransferState.CLAIMED: {
-        TransferState.COLLECTED,
+        TransferState.TRANSFERRED,
         TransferState.BROADCAST,
         TransferState.EXPIRED,
+        TransferState.FAILED,
+    },
+    TransferState.TRANSFERRED: {
+        TransferState.COLLECTOR_VERIFYING,
+        TransferState.INTEGRITY_FAILED,
+        TransferState.FAILED,
+    },
+    TransferState.COLLECTOR_VERIFYING: {
+        TransferState.ACCEPTED,
+        TransferState.INTEGRITY_FAILED,
         TransferState.FAILED,
     },
 }
@@ -165,8 +179,25 @@ class BroadcastDescriptor:
 class CollectionReceipt:
     package_id: str
     collector_id: str
-    sha256: str
-    status: str = "collected"
+    expected_sha256: str
+    observed_sha256: str
+    status: str
+
+
+@dataclass(frozen=True, slots=True)
+class SecurityAlert:
+    event_type: str
+    severity: str
+    request_id: str
+    package_id: str
+    collector_id: str
+    expected_sha256: str
+    observed_sha256: str
+    signing_key_id: str
+    package_class: str
+    artifact_id: str
+    version: str
+    provenance: str
 
 
 @dataclass(slots=True)
@@ -178,11 +209,7 @@ class _TransferRecord:
 
 
 class TransferBroker:
-    """In-memory state machine defining the Bastion transfer-broker protocol.
-
-    Durable storage and transport adapters may wrap this contract. They must not
-    bypass its state transitions or approval requirements.
-    """
+    """In-memory state machine defining the Bastion transfer-broker protocol."""
 
     def __init__(self) -> None:
         self._records: dict[str, _TransferRecord] = {}
@@ -272,15 +299,72 @@ class TransferBroker:
         record.state = TransferState.BROADCAST
         return record.state
 
-    def collect(self, request_id: str, collector_id: str, sha256: str) -> CollectionReceipt:
+    def mark_transferred(self, request_id: str, collector_id: str) -> TransferState:
         record = self._record(request_id)
-        package = record.package
         if record.state is not TransferState.CLAIMED or record.claimed_by != collector_id:
             raise BrokerError("collector must hold the package claim")
-        if package is None or sha256 != package.sha256:
-            raise BrokerError("collector digest does not match the approved package")
-        record.state = TransferState.COLLECTED
-        return CollectionReceipt(package.package_id, collector_id, package.sha256)
+        record.state = TransferState.TRANSFERRED
+        return record.state
+
+    def begin_collector_verification(self, request_id: str, collector_id: str) -> TransferState:
+        record = self._record(request_id)
+        if record.state is not TransferState.TRANSFERRED or record.claimed_by != collector_id:
+            raise BrokerError("collector must verify the transferred package it claimed")
+        record.state = TransferState.COLLECTOR_VERIFYING
+        return record.state
+
+    def confirm_collection(
+        self, request_id: str, collector_id: str, observed_sha256: str
+    ) -> CollectionReceipt:
+        record = self._record(request_id)
+        package = record.package
+        if record.state is not TransferState.COLLECTOR_VERIFYING or record.claimed_by != collector_id:
+            raise BrokerError("collector verification must be in progress")
+        if package is None:
+            raise BrokerError("approved package is missing")
+        if observed_sha256 != package.sha256:
+            record.state = TransferState.INTEGRITY_FAILED
+            return CollectionReceipt(
+                package.package_id,
+                collector_id,
+                package.sha256,
+                observed_sha256,
+                "integrity-failed",
+            )
+        record.state = TransferState.ACCEPTED
+        return CollectionReceipt(
+            package.package_id,
+            collector_id,
+            package.sha256,
+            observed_sha256,
+            "accepted",
+        )
+
+    def integrity_alert(
+        self, request_id: str, collector_id: str, observed_sha256: str
+    ) -> SecurityAlert:
+        record = self._record(request_id)
+        package = record.package
+        if record.state is not TransferState.INTEGRITY_FAILED or package is None:
+            raise BrokerError("integrity alert requires an integrity-failed transfer")
+        if record.claimed_by != collector_id:
+            raise BrokerError("collector identity does not match the failed transfer")
+        if observed_sha256 == package.sha256:
+            raise BrokerError("integrity alert requires a digest discrepancy")
+        return SecurityAlert(
+            event_type="package_integrity_mismatch",
+            severity="high",
+            request_id=request_id,
+            package_id=package.package_id,
+            collector_id=collector_id,
+            expected_sha256=package.sha256,
+            observed_sha256=observed_sha256,
+            signing_key_id=package.signing_key_id,
+            package_class=package.package_class,
+            artifact_id=package.artifact_id,
+            version=package.version,
+            provenance=package.provenance,
+        )
 
     def _record(self, request_id: str) -> _TransferRecord:
         try:

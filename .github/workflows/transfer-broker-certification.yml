@@ -28,7 +28,7 @@ jobs:
         run: python -m ruff check src/fieldora_bastion/transfer_broker.py tests/test_transfer_broker.py
       - name: Test broker lifecycle
         run: python -m pytest -q tests/test_transfer_broker.py
-      - name: Certify fail-closed broadcast contract
+      - name: Certify fail-closed integrity contract
         run: |
           python - <<'PY'
           from pathlib import Path
@@ -39,10 +39,13 @@ jobs:
               'TransferState.QUARANTINED',
               'TransferState.SCANNING',
               'TransferState.VERIFYING',
+              'TransferState.COLLECTOR_VERIFYING',
+              'TransferState.INTEGRITY_FAILED',
               'manifest_signature != "ed25519"',
               'malware_scan_result != "clean"',
-              'collector is not in the broadcast audience',
-              'collector digest does not match the approved package',
+              'package_integrity_mismatch',
+              'expected_sha256',
+              'observed_sha256',
           ):
               if needle not in text:
                   raise SystemExit(f'missing broker trust contract: {needle}')

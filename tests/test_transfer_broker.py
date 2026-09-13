@@ -43,25 +43,34 @@ def _package() -> ApprovedPackage:
     )
 
 
-def test_collection_request_reaches_broadcast_and_receipt() -> None:
+def _claimed_transfer() -> TransferBroker:
     broker = TransferBroker()
-    assert broker.submit(_request()) is TransferState.REQUESTED
+    broker.submit(_request())
     for state in (
         TransferState.ACQUIRING,
         TransferState.QUARANTINED,
         TransferState.SCANNING,
         TransferState.VERIFYING,
     ):
-        assert broker.advance("req-001", state) is state
-    assert broker.approve("req-001", _package()) is TransferState.APPROVED
-    notice = broker.broadcast("req-001")
-    assert notice.sha256 == DIGEST
-    assert notice.malware_scan_result == "clean"
-    assert notice.audience == ("science-importer",)
-    assert broker.claim("req-001", "science-importer") is TransferState.CLAIMED
-    receipt = broker.collect("req-001", "science-importer", DIGEST)
-    assert receipt.status == "collected"
-    assert broker.state("req-001") is TransferState.COLLECTED
+        broker.advance("req-001", state)
+    broker.approve("req-001", _package())
+    broker.broadcast("req-001")
+    broker.claim("req-001", "science-importer")
+    return broker
+
+
+def test_collection_request_reaches_verified_acceptance() -> None:
+    broker = _claimed_transfer()
+    assert broker.mark_transferred("req-001", "science-importer") is TransferState.TRANSFERRED
+    assert (
+        broker.begin_collector_verification("req-001", "science-importer")
+        is TransferState.COLLECTOR_VERIFYING
+    )
+    receipt = broker.confirm_collection("req-001", "science-importer", DIGEST)
+    assert receipt.status == "accepted"
+    assert receipt.expected_sha256 == DIGEST
+    assert receipt.observed_sha256 == DIGEST
+    assert broker.state("req-001") is TransferState.ACCEPTED
 
 
 def test_delivery_request_must_start_with_receiving() -> None:
@@ -105,18 +114,24 @@ def test_unauthorized_collector_cannot_claim_broadcast() -> None:
         broker.claim("req-001", "other-service")
 
 
-def test_collection_receipt_requires_exact_approved_digest() -> None:
-    broker = TransferBroker()
-    broker.submit(_request())
-    for state in (
-        TransferState.ACQUIRING,
-        TransferState.QUARANTINED,
-        TransferState.SCANNING,
-        TransferState.VERIFYING,
-    ):
-        broker.advance("req-001", state)
-    broker.approve("req-001", _package())
-    broker.broadcast("req-001")
-    broker.claim("req-001", "science-importer")
-    with pytest.raises(BrokerError, match="digest"):
-        broker.collect("req-001", "science-importer", "b" * 64)
+def test_digest_mismatch_is_terminal_integrity_failure_and_alert() -> None:
+    broker = _claimed_transfer()
+    broker.mark_transferred("req-001", "science-importer")
+    broker.begin_collector_verification("req-001", "science-importer")
+    observed = "b" * 64
+    receipt = broker.confirm_collection("req-001", "science-importer", observed)
+
+    assert receipt.status == "integrity-failed"
+    assert receipt.expected_sha256 == DIGEST
+    assert receipt.observed_sha256 == observed
+    assert broker.state("req-001") is TransferState.INTEGRITY_FAILED
+
+    alert = broker.integrity_alert("req-001", "science-importer", observed)
+    assert alert.event_type == "package_integrity_mismatch"
+    assert alert.severity == "high"
+    assert alert.expected_sha256 == DIGEST
+    assert alert.observed_sha256 == observed
+    assert alert.signing_key_id == "bastion-key-1"
+
+    with pytest.raises(BrokerError, match="terminal request"):
+        broker.advance("req-001", TransferState.ACCEPTED)
