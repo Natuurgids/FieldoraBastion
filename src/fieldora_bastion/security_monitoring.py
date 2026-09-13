@@ -20,7 +20,7 @@ class WazuhJsonlSink:
         """Write one bounded single-line JSON alert and durably flush it."""
         if not self.path.parent.is_dir():
             raise FileNotFoundError(f"security event directory does not exist: {self.path.parent}")
-        payload = {"fieldora": {"component": "bastion", **asdict(alert)}}
+        payload = {"bastion": {**asdict(alert), "component": "security-broker"}}
         with self.path.open("a", encoding="utf-8", newline="\n") as handle:
             handle.write(json.dumps(payload, sort_keys=True, separators=(",", ":")))
             handle.write("\n")
