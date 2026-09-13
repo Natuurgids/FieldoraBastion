@@ -6,7 +6,7 @@ storage and are transferred through a separately controlled mechanism.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 from fieldora_bastion.transfer_broker import BroadcastDescriptor, BrokerError
 
@@ -15,8 +15,7 @@ from fieldora_bastion.transfer_broker import BroadcastDescriptor, BrokerError
 class SecureCatalogue:
     """In-memory protocol contract for descriptor publication and lookup."""
 
-    def __init__(self) -> None:
-        self._descriptors: dict[str, BroadcastDescriptor] = {}
+    _descriptors: dict[str, BroadcastDescriptor] = field(default_factory=dict)
 
     def publish(self, descriptor: BroadcastDescriptor) -> None:
         existing = self._descriptors.get(descriptor.package_id)
