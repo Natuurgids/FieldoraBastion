@@ -14,6 +14,8 @@ from fieldora_bastion.transfer_broker import (
     TransferState,
 )
 
+_RELEASE_DIGEST = "c" * 64
+
 
 def _request() -> TransferRequest:
     return TransferRequest(
@@ -51,6 +53,7 @@ def _publish(provider: FieldoraBastionProvider) -> None:
     provider.advance("req-001", TransferState.SCANNING)
     provider.advance("req-001", TransferState.VERIFYING)
     provider.approve("req-001", _package())
+    provider.authorize_release("req-001", _RELEASE_DIGEST)
     provider.broadcast("req-001")
 
 
@@ -71,6 +74,7 @@ def test_runtime_restores_published_transfer_and_descriptor(tmp_path: Path) -> N
     assert restored.state("req-001") is TransferState.BROADCAST
     descriptor = restored.descriptor_for_collector("pkg-001", "fieldora-prod")
     assert descriptor.sha256 == "a" * 64
+    assert descriptor.release_digest == _RELEASE_DIGEST
 
 
 def test_runtime_persists_terminal_receipt_across_restart(tmp_path: Path) -> None:
@@ -82,6 +86,7 @@ def test_runtime_persists_terminal_receipt_across_restart(tmp_path: Path) -> Non
     provider.begin_collector_verification("req-001", "fieldora-prod")
     receipt = provider.confirm_collection("req-001", "fieldora-prod", "a" * 64)
     assert receipt.status == "accepted"
+    assert receipt.release_digest == _RELEASE_DIGEST
 
     restored = FieldoraBastionProvider(state_db)
     assert restored.state("req-001") is TransferState.ACCEPTED
