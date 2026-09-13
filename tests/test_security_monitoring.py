@@ -29,11 +29,12 @@ def test_wazuh_sink_writes_bounded_bastion_alert(tmp_path) -> None:
     lines = log.read_text(encoding="utf-8").splitlines()
     assert len(lines) == 1
     event = json.loads(lines[0])
-    assert event["fieldora"]["component"] == "bastion"
-    assert event["fieldora"]["event_type"] == "package_integrity_mismatch"
-    assert event["fieldora"]["expected_sha256"] == "a" * 64
-    assert "path" not in event["fieldora"]
-    assert "content" not in event["fieldora"]
+    assert "fieldora" not in event
+    assert event["bastion"]["component"] == "security-broker"
+    assert event["bastion"]["event_type"] == "package_integrity_mismatch"
+    assert event["bastion"]["expected_sha256"] == "a" * 64
+    assert "path" not in event["bastion"]
+    assert "content" not in event["bastion"]
 
 
 def test_wazuh_sink_requires_precreated_event_directory(tmp_path) -> None:
