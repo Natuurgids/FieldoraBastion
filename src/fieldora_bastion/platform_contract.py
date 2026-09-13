@@ -1,75 +1,39 @@
-"""Product-neutral security-platform contract for FieldoraBastion."""
+"""Interchangeable secure-transfer provider contract for FieldoraBastion."""
 
 from __future__ import annotations
 
 from dataclasses import dataclass
 
-_SECURITY_CAPABILITIES = {
-    "secure-transfer",
-    "identity-broker",
-    "security-monitoring",
-    "security-posture",
-    "software-supply-chain",
-}
-_SUPPLY_CHAIN_CONTROLS = {"renovate", "trivy", "syft", "osv"}
-_LICENSE_POLICY = "commercial-private"
 
-
-class PlatformContractError(ValueError):
-    """Raised when a product adapter violates the Bastion platform boundary."""
+class ProviderContractError(ValueError):
+    """Raised when the Bastion provider declaration violates the security-install contract."""
 
 
 @dataclass(frozen=True, slots=True)
-class ProductAdapter:
-    """Bounded description of a product consuming Bastion security services."""
+class SecurityProvider:
+    """Describe one independently replaceable provider in the Security Install."""
 
-    product_id: str
-    adapter: str
-    authorization_authority: str
-    package_classes: tuple[str, ...]
-
-    def __post_init__(self) -> None:
-        for name, value in (
-            ("product_id", self.product_id),
-            ("adapter", self.adapter),
-            ("authorization_authority", self.authorization_authority),
-        ):
-            if not value.strip():
-                raise PlatformContractError(f"{name} must not be blank")
-        if not self.package_classes or any(not item.strip() for item in self.package_classes):
-            raise PlatformContractError("package_classes must contain non-blank values")
-
-
-@dataclass(frozen=True, slots=True)
-class SecurityPlatformContract:
-    """Validated reusable Bastion capabilities and attached product adapters."""
-
-    capabilities: tuple[str, ...]
-    supply_chain_controls: tuple[str, ...]
-    license_policy: str
-    products: tuple[ProductAdapter, ...]
+    capability: str
+    provider_id: str
+    protocol_version: int
+    implementation_version: str
 
     def __post_init__(self) -> None:
-        capabilities = set(self.capabilities)
-        if capabilities != _SECURITY_CAPABILITIES:
-            raise PlatformContractError("all approved security capabilities must be declared exactly once")
-        controls = set(self.supply_chain_controls)
-        if controls != _SUPPLY_CHAIN_CONTROLS:
-            raise PlatformContractError("Renovate, Trivy, Syft, and OSV are required controls")
-        if self.license_policy != _LICENSE_POLICY:
-            raise PlatformContractError("license_policy must be commercial-private")
-        if not self.products:
-            raise PlatformContractError("at least one product adapter is required")
-        product_ids = [product.product_id for product in self.products]
-        if len(product_ids) != len(set(product_ids)):
-            raise PlatformContractError("product_id values must be unique")
+        if not self.capability.strip():
+            raise ProviderContractError("capability must not be blank")
+        if not self.provider_id.strip():
+            raise ProviderContractError("provider_id must not be blank")
+        if self.protocol_version < 1:
+            raise ProviderContractError("protocol_version must be positive")
+        if not self.implementation_version.strip():
+            raise ProviderContractError("implementation_version must not be blank")
 
 
-def fieldora_adapter() -> ProductAdapter:
-    """Return the Fieldora integration without making Fieldora a platform authority."""
-    return ProductAdapter(
-        product_id="fieldora",
-        adapter="fieldora",
-        authorization_authority="fieldora-pbac",
-        package_classes=("software-update", "model", "taxonomy", "scientific-data", "maps"),
+def fieldora_bastion_provider(version: str = "0.1.0") -> SecurityProvider:
+    """Declare FieldoraBastion as one replaceable secure-transfer provider."""
+    return SecurityProvider(
+        capability="secure-transfer",
+        provider_id="fieldora-bastion",
+        protocol_version=1,
+        implementation_version=version,
     )
