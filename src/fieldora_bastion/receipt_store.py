@@ -6,8 +6,8 @@ identity tokens, credentials, or signing keys.
 
 from __future__ import annotations
 
-from pathlib import Path
 import sqlite3
+from pathlib import Path
 
 from fieldora_bastion.transfer_broker import BrokerError, CollectionReceipt
 
