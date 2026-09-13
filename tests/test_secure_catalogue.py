@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from dataclasses import replace
+
 import pytest
 
 from fieldora_bastion.secure_catalogue import SecureCatalogue
@@ -41,9 +43,8 @@ def test_catalogue_rejects_unauthorized_collector() -> None:
 
 def test_package_id_cannot_be_republished_with_changed_descriptor() -> None:
     catalogue = SecureCatalogue()
-    catalogue.publish(_descriptor())
-    changed = BroadcastDescriptor(
-        **{**_descriptor().__dict__, "sha256": "c" * 64}
-    )
+    original = _descriptor()
+    catalogue.publish(original)
+    changed = replace(original, sha256="c" * 64)
     with pytest.raises(BrokerError, match="different descriptor"):
         catalogue.publish(changed)
