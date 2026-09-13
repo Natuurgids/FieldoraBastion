@@ -1,35 +1,45 @@
-# Reusable security platform
+# Security Install provider boundary
 
-FieldoraBastion is evolving from a Fieldora-specific acquisition helper into a reusable security gateway and control-plane contract for protected products. Fieldora remains the first product adapter, not the authority for the generic platform.
+FieldoraBastion is one independently deployable component in a larger reusable Security Install. It is not the umbrella security platform.
 
-## Capabilities
+The Security Install owns composition. It defines capability slots and compatibility contracts. Concrete products fill those slots and must be replaceable without changing protected products or weakening the policy boundary.
 
-The reusable platform contract separates five capabilities:
+## Default provider model
 
-- secure transfer: collection/delivery requests, quarantine, scanning, provenance and signature verification, approved catalogue/broadcast, governed collection, and receipts;
-- identity broker integration: Keycloak and standards-based human federation such as OIDC and SAML;
-- security monitoring: bounded events for Wazuh or another monitoring sink;
-- security posture: optional OpenKAT integration for vulnerability and exposure assessment;
-- software supply chain: Renovate update discovery, Trivy vulnerability scanning, Syft SBOM generation, OSV intelligence, and a `commercial-private` license gate.
+The intended defaults are:
 
-These capabilities are logical control-plane responsibilities. They must not be collapsed into one privileged container. Keycloak, Wazuh, OpenKAT, scanners, signing stages, and product services remain independently isolated according to least privilege.
+- secure transfer: FieldoraBastion;
+- human identity broker: Keycloak;
+- security monitoring/SIEM: Wazuh;
+- security posture and exposure assessment: OpenKAT;
+- update discovery: Renovate;
+- vulnerability scanning: Trivy;
+- SBOM generation: Syft;
+- vulnerability intelligence: OSV;
+- secrets: a deployment-target-appropriate secret provider.
 
-## Product adapters
+These names are defaults, not architectural requirements. A compatible alternative may replace any provider when it implements the same capability contract, preserves required evidence and fail-closed behavior, and passes certification.
 
-A product adapter declares a stable product ID, adapter identity, the product's own authorization authority, and package classes that it accepts. The platform must not silently inherit one product's business authorization model.
+For example, replacing Wazuh must not change the bounded security-event contract; replacing Keycloak must preserve the required OIDC/SAML identity-broker contract; replacing Trivy must preserve the vulnerability-scan evidence contract; replacing FieldoraBastion must preserve the secure-transfer request, quarantine, verification, approval, broadcast/catalogue, collection, receipt, and independent-verification semantics.
 
-For Fieldora, Fieldora remains authoritative for PBAC and trusted-side acceptance. A different product can retain RBAC, ABAC, or another authorization authority while reusing the same Bastion transfer, monitoring, posture, identity-federation, and supply-chain controls.
+## FieldoraBastion responsibility
 
-The generic platform must not require Fieldora database credentials, scientific-domain permissions, or Fieldora filesystem paths. Product-specific trusted-side verification stays in the product adapter or protected product.
+FieldoraBastion implements the `secure-transfer` provider slot. Its responsibilities remain collection and delivery requests, quarantine, malware/content-policy scanning, provenance and signature verification, approved package catalogue/broadcast, governed collection, receipts, and bounded security events.
 
-## Software and security updates
+FieldoraBastion does not own Keycloak, Wazuh, OpenKAT, Renovate, Trivy, Syft, OSV, or the overall installer. It must not require another provider to be embedded inside the Bastion container.
 
-Software updates are a governed package class. Update discovery never means automatic production deployment. A candidate update must pass review, tests, vulnerability and license gates, SBOM generation, signing, and the applicable product/deployment certifications before it becomes an approved update package.
+## Product independence
 
-Unknown, non-commercial, incompatible, or otherwise unapproved licensing must fail the `commercial-private` release gate. Independently deployed open-source services must not create an obligation to publish unrelated proprietary consumer-product source.
+Fieldora is one protected product that can consume the Security Install. Other products may consume the same installation while keeping their own business authorization model and trusted-side acceptance rules.
 
-## Bootstrap relationship
+Fieldora remains authoritative for Fieldora PBAC and trusted-side acceptance. Another product may use RBAC, ABAC, or another authorization model. Security providers must not silently become the business-authorization authority for protected products.
 
-The reusable Bastion contract should be the security-platform portion of higher-level installers. Product installers may add their own database, storage, UI, PBAC/RBAC, and domain configuration, but should consume the Bastion security contract rather than redefine Keycloak, Wazuh, OpenKAT, update scanning, or secure-transfer semantics independently.
+## Isolation and secrets
 
-Bootstrap credentials are ephemeral provisioning input. Target-specific installers must migrate them to protected secret storage and must not make Bastion a permanent plaintext secret database or general cloud credential vault.
+Providers stay independently isolated according to least privilege. The Security Install may orchestrate deployment and configuration, but it must not collapse all security functions into one privileged container or one shared permanent credential store.
+
+Bootstrap credentials are ephemeral provisioning input and must move into target-appropriate protected secret storage. High-value signing keys, encryption keys, and cloud workload credentials remain outside ordinary configuration.
+
+## Commercial/private release policy
+
+The Security Install should keep the `commercial-private` licensing gate. Unknown, non-commercial, incompatible, or otherwise unapproved dependencies must block release. Using independently deployed open-source providers must not create an obligation to publish unrelated proprietary protected-product source.
