@@ -1,8 +1,10 @@
+x-fieldora-bastion-build: &fieldora-bastion-build
+  context: .
+  dockerfile: Containerfile
+
 services:
   model-scanner:
-    build:
-      context: .
-      dockerfile: Containerfile
+    build: *fieldora-bastion-build
     image: fieldora-bastion:local
     profiles: ["tools"]
     network_mode: none
@@ -26,9 +28,6 @@ services:
       - /var/lib/clamav
 
   model-bundle-builder:
-    build:
-      context: .
-      dockerfile: Containerfile
     image: fieldora-bastion:local
     profiles: ["tools"]
     network_mode: none
