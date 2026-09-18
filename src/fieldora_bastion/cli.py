@@ -8,6 +8,7 @@ from pathlib import Path
 
 from fieldora_bastion.model_bundle import BundleBuildError, build_model_bundle
 from fieldora_bastion.scanner import ScanError, scan_with_clamav
+from fieldora_bastion.security_install_transfer import TransferBuildError, build_security_install_transfer
 
 
 def _parser() -> argparse.ArgumentParser:
@@ -41,6 +42,10 @@ def _parser() -> argparse.ArgumentParser:
             "requires --signing-key so the attestation is bound to manifest.sig."
         ),
     )
+    transfer = sub.add_parser("export-security-install")
+    transfer.add_argument("bundle", type=Path)
+    transfer.add_argument("output", type=Path)
+    transfer.add_argument("--collector-id", default="offline-transfer")
     return parser
 
 
@@ -58,6 +63,17 @@ def main(argv: list[str] | None = None) -> int:
             print(json.dumps({"ok": False, "error": str(exc)}, separators=(",", ":")))
             return 2
         print(json.dumps({"ok": True, **report}, separators=(",", ":")))
+        return 0
+
+    if args.command == "export-security-install":
+        try:
+            artifact, evidence = build_security_install_transfer(
+                args.bundle, args.output, collector_id=args.collector_id
+            )
+        except TransferBuildError as exc:
+            print(json.dumps({"ok": False, "error": str(exc)}, separators=(",", ":")))
+            return 2
+        print(json.dumps({"ok": True, "artifact": str(artifact), "evidence": str(evidence)}, separators=(",", ":")))
         return 0
 
     try:
