@@ -107,19 +107,6 @@ def build_security_install_transfer(
             "approved": True,
             "release_digest": manifest_digest,
         },
-        "transfer_receipt": {
-            "package_id": artifact.name,
-            "collector_id": collector_id.strip() or "offline-transfer",
-            "expected_sha256": artifact_sha256,
-            "observed_sha256": artifact_sha256,
-            "status": "accepted",
-        },
-        "independent_verification": {
-            "verified": True,
-            "package_id": artifact.name,
-            "release_digest": manifest_digest,
-            "sha256": artifact_sha256,
-        },
     }
     evidence_path.write_text(
         json.dumps(evidence, ensure_ascii=False, sort_keys=True, indent=2) + "\n",
