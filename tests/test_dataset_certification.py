@@ -5,13 +5,12 @@ from pathlib import Path
 
 import pytest
 
-from fieldora_bastion.scanner import payload_tree_digest
-
 from fieldora_bastion.dataset_certification import (
     DatasetCertificationError,
     certify_gbif_dataset,
     certify_map_dataset,
 )
+from fieldora_bastion.scanner import payload_tree_digest
 
 
 def _scan(path: Path, source: Path) -> Path:
