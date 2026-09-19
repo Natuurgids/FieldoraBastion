@@ -4,6 +4,8 @@ import json
 from pathlib import Path
 
 import pytest
+from cryptography.hazmat.primitives import serialization
+from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 
 from fieldora_bastion.certified_artifact_transfer import (
     CertifiedArtifactError,
@@ -17,13 +19,15 @@ def test_certified_artifact_types_are_standalone(tmp_path: Path, artifact_type: 
     source.mkdir()
     (source / "payload.dat").write_bytes(b"fieldora-test-payload")
     out = tmp_path / "out"
+    signing_key, key_id = _signing_key(tmp_path)
     package, evidence_path = build_certified_artifact_transfer(
         source,
         out,
         artifact_type=artifact_type,
         artifact_id="example",
         version="2026.09",
-        signer_key_id="bastion-key-1",
+        signer_key_id=key_id,
+        signing_key=signing_key,
         provenance={"source_id": "upstream-example", "retrieved_at": "2026-09-19T00:00:00Z"},
         validation={"approved": True, "validator": f"{artifact_type}-validator"},
     )
@@ -34,6 +38,21 @@ def test_certified_artifact_types_are_standalone(tmp_path: Path, artifact_type: 
     serialized = json.dumps(evidence).lower()
     for forbidden in ("postgres", "fieldora-access-dsn", "transfer_receipt", "independent_verification"):
         assert forbidden not in serialized
+
+
+def _signing_key(tmp_path: Path) -> tuple[Path, str]:
+    key = Ed25519PrivateKey.generate()
+    path = tmp_path / "signing-key.pem"
+    path.write_bytes(key.private_bytes(
+        serialization.Encoding.PEM,
+        serialization.PrivateFormat.PKCS8,
+        serialization.NoEncryption(),
+    ))
+    public_der = key.public_key().public_bytes(
+        serialization.Encoding.DER, serialization.PublicFormat.SubjectPublicKeyInfo
+    )
+    import hashlib
+    return path, hashlib.sha256(public_der).hexdigest()[:32]
 
 
 def test_rejects_unvalidated_artifact(tmp_path: Path) -> None:
@@ -47,7 +66,8 @@ def test_rejects_unvalidated_artifact(tmp_path: Path) -> None:
             artifact_type="map_dataset",
             artifact_id="map",
             version="1",
-            signer_key_id="key",
+            signer_key_id=_signing_key(tmp_path)[1],
+            signing_key=_signing_key(tmp_path)[0],
             provenance={"source_id": "source"},
             validation={"approved": False},
         )
@@ -64,7 +84,8 @@ def test_rejects_payload_not_matching_scan_binding(tmp_path: Path) -> None:
             artifact_type="map_dataset",
             artifact_id="map",
             version="1",
-            signer_key_id="key",
+            signer_key_id=_signing_key(tmp_path)[1],
+            signing_key=_signing_key(tmp_path)[0],
             provenance={"source_id": "source"},
             validation={"approved": True},
             expected_payload_sha256="0" * 64,
