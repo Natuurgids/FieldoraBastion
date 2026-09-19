@@ -8,11 +8,15 @@ on:
       - "src/fieldora_bastion/dataset_certification.py"
       - "src/fieldora_bastion/dataset_validation.py"
       - "src/fieldora_bastion/gbif_provenance.py"
+      - "src/fieldora_bastion/gbif_acquisition.py"
+      - "src/fieldora_bastion/gbif_acquisition.py"
       - "src/fieldora_bastion/scanner.py"
       - "tests/test_certified_artifact_transfer.py"
       - "tests/test_dataset_certification.py"
       - "tests/test_dataset_validation.py"
       - "tests/test_gbif_provenance.py"
+      - "tests/test_gbif_acquisition.py"
+      - "tests/test_gbif_acquisition.py"
       - "src/fieldora_bastion/cli.py"
       - "tests/test_security_install_transfer.py"
       - ".github/workflows/security-install-transfer-certification.yml"
@@ -46,7 +50,7 @@ jobs:
           python-version: "3.11"
       - run: python -m pip install -e ".[dev]"
       - run: python -m ruff check src/fieldora_bastion tests
-      - run: python -m pytest -q tests/test_security_install_transfer.py tests/test_certified_artifact_transfer.py tests/test_dataset_certification.py tests/test_dataset_validation.py tests/test_gbif_provenance.py
+      - run: python -m pytest -q tests/test_security_install_transfer.py tests/test_certified_artifact_transfer.py tests/test_dataset_certification.py tests/test_dataset_validation.py tests/test_gbif_provenance.py tests/test_gbif_acquisition.py
       - name: Certify standalone boundary
         run: |
           fieldora-bastion export-security-install --help >/dev/null
