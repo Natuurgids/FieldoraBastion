@@ -65,6 +65,8 @@ def certify_map_dataset(
         source, output, artifact_type="map_dataset", artifact_id=dataset_id,
         version=version, signer_key_id=signer_key_id,
         provenance=provenance, validation=validation,
+        expected_payload_sha256=str(scan["payload_sha256"]),
+        expected_file_count=int(scan["file_count"]),
     )
 
 
