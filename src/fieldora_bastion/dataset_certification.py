@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
+import tempfile
+from zipfile import BadZipFile, ZipFile
 from pathlib import Path
 
 from fieldora_bastion.certified_artifact_transfer import build_certified_artifact_transfer
@@ -96,7 +99,6 @@ def certify_gbif_dataset(
         )
     if source.stat().st_size != archive_size:
         raise DatasetCertificationError("GBIF acquisition archive size does not match source")
-    import hashlib
     digest = hashlib.sha256()
     with source.open("rb") as stream:
         for block in iter(lambda: stream.read(1024 * 1024), b""):
@@ -104,13 +106,31 @@ def certify_gbif_dataset(
     if digest.hexdigest() != archive_sha256:
         raise DatasetCertificationError("GBIF acquisition archive digest does not match source")
     provenance = acquisition.as_provenance()
-    validation = validate_biodiversity_dataset(
-        source,
-        source_id="gbif",
-        license_id=acquisition.license_id,
-        dataset_key=acquisition.download_key,
-        doi=acquisition.doi,
-    )
+    try:
+        with tempfile.TemporaryDirectory(prefix="fieldora-gbif-validate-") as temporary:
+            validation_root = Path(temporary)
+            with ZipFile(source, "r") as archive:
+                for info in archive.infolist():
+                    target = (validation_root / info.filename).resolve()
+                    if validation_root.resolve() not in target.parents and target != validation_root.resolve():
+                        raise DatasetCertificationError("GBIF archive contains an unsafe path")
+                    if info.is_dir():
+                        continue
+                    target.parent.mkdir(parents=True, exist_ok=True)
+                    with archive.open(info, "r") as stream, target.open("xb") as output_stream:
+                        for block in iter(lambda: stream.read(1024 * 1024), b""):
+                            output_stream.write(block)
+            validation = validate_biodiversity_dataset(
+                validation_root,
+                source_id="gbif",
+                license_id=acquisition.license_id,
+                dataset_key=acquisition.download_key,
+                doi=acquisition.doi,
+            )
+    except (BadZipFile, OSError, RuntimeError, ValueError) as exc:
+        if isinstance(exc, DatasetCertificationError):
+            raise
+        raise DatasetCertificationError("GBIF acquired archive is not a valid dataset ZIP") from exc
     provenance["malware_scan"] = scan
     return build_certified_artifact_transfer(
         source, output, artifact_type="biodiversity_dataset", artifact_id=dataset_id,
