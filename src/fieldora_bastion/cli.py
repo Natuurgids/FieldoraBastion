@@ -13,7 +13,10 @@ from fieldora_bastion.dataset_certification import (
 )
 from fieldora_bastion.model_bundle import BundleBuildError, build_model_bundle
 from fieldora_bastion.scanner import ScanError, scan_with_clamav
-from fieldora_bastion.security_install_transfer import TransferBuildError, build_security_install_transfer
+from fieldora_bastion.security_install_transfer import (
+    TransferBuildError,
+    build_security_install_transfer,
+)
 
 
 def _parser() -> argparse.ArgumentParser:
