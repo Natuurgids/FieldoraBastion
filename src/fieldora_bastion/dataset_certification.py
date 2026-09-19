@@ -32,10 +32,14 @@ def _clean_scan(report_path: Path, source: Path) -> dict[str, object]:
     if not expected:
         raise DatasetCertificationError("scan report is not bound to a payload digest")
     try:
-        _, observed = payload_tree_digest(source, 64 * 1024 * 1024 * 1024)
+        expected_count = int(report.get("file_count"))
+    except (TypeError, ValueError):
+        raise DatasetCertificationError("scan report is not bound to a file count") from None
+    try:
+        observed_count, observed = payload_tree_digest(source, 64 * 1024 * 1024 * 1024)
     except ScanError as exc:
         raise DatasetCertificationError("dataset cannot be rehashed safely") from exc
-    if observed != expected:
+    if observed != expected or observed_count != expected_count:
         raise DatasetCertificationError("dataset changed after malware scan")
     return report
 
