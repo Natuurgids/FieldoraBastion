@@ -19,13 +19,13 @@ def test_map_geojson_requires_source_license_and_structure(tmp_path: Path) -> No
     result = validate_map_dataset(tmp_path, source_id="map-provider", license_id="ODbL")
     assert result["approved"] is True
     assert result["geojson_structures_checked"] == 1
-    assert result["native_geospatial_validation_required_on_receiver"] is False
+    assert result["native_geospatial_validation_required_on_bastion"] is False
 
 
 def test_map_native_format_is_marked_for_deeper_geospatial_validation(tmp_path: Path) -> None:
     (tmp_path / "base.gpkg").write_bytes(b"SQLite format 3\x00")
     result = validate_map_dataset(tmp_path, source_id="map-provider", license_id="license")
-    assert result["native_geospatial_validation_required_on_receiver"] is True
+    assert result["native_geospatial_validation_required_on_bastion"] is True
 
 
 def test_biodiversity_preserves_gbif_identity_and_dwc_terms(tmp_path: Path) -> None:
