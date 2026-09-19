@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import hashlib
 import json
+from zipfile import ZIP_DEFLATED, ZipFile
 from pathlib import Path
 
 import pytest
@@ -26,7 +28,6 @@ def _signing_key(tmp_path: Path) -> tuple[Path, str]:
     public_der = key.public_key().public_bytes(
         serialization.Encoding.DER, serialization.PublicFormat.SubjectPublicKeyInfo
     )
-    import hashlib
     return path, hashlib.sha256(public_der).hexdigest()[:32]
 
 
@@ -41,11 +42,12 @@ def _scan(path: Path, source: Path) -> Path:
 
 
 def test_gbif_certification_binds_source_validation_and_scan(tmp_path: Path) -> None:
-    source = tmp_path / "gbif"
-    source.mkdir()
-    (source / "occurrence.csv").write_text(
-        "occurrenceID,scientificName\n1,Parus major\n", encoding="utf-8"
-    )
+    source = tmp_path / "0003988-260831124212860.zip"
+    with ZipFile(source, "w", compression=ZIP_DEFLATED) as archive:
+        archive.writestr(
+            "occurrence.csv", "occurrenceID,scientificName\n1,Parus major\n"
+        )
+    archive_bytes = source.read_bytes()
     signing_key, key_id = _signing_key(tmp_path)
     package, evidence_path = certify_gbif_dataset(
         source, tmp_path / "out", dataset_id="nl-birds", version="2026-09",
@@ -58,8 +60,8 @@ def test_gbif_certification_binds_source_validation_and_scan(tmp_path: Path) -> 
             "license_id": "CC-BY-4.0",
             "query": {"country": "NL"},
             "record_count": 1,
-            "archive_sha256": "a" * 64,
-            "archive_size": 12345,
+            "archive_sha256": hashlib.sha256(archive_bytes).hexdigest(),
+            "archive_size": len(archive_bytes),
         },
     )
     evidence = json.loads(evidence_path.read_text(encoding="utf-8"))
