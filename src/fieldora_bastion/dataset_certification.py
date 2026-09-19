@@ -88,6 +88,21 @@ def certify_gbif_dataset(
 ) -> tuple[Path, Path]:
     scan = _clean_scan(scan_report, source)
     acquisition = validate_gbif_acquisition(acquisition_record)
+    archive_sha256 = str(acquisition_record.get("archive_sha256") or "").lower()
+    archive_size = acquisition.archive_size
+    if source.is_symlink() or not source.is_file():
+        raise DatasetCertificationError(
+            "GBIF certification source must be the Bastion-acquired archive file"
+        )
+    if source.stat().st_size != archive_size:
+        raise DatasetCertificationError("GBIF acquisition archive size does not match source")
+    import hashlib
+    digest = hashlib.sha256()
+    with source.open("rb") as stream:
+        for block in iter(lambda: stream.read(1024 * 1024), b""):
+            digest.update(block)
+    if digest.hexdigest() != archive_sha256:
+        raise DatasetCertificationError("GBIF acquisition archive digest does not match source")
     provenance = acquisition.as_provenance()
     validation = validate_biodiversity_dataset(
         source,
@@ -101,4 +116,6 @@ def certify_gbif_dataset(
         source, output, artifact_type="biodiversity_dataset", artifact_id=dataset_id,
         version=version, signer_key_id=signer_key_id, signing_key=signing_key,
         provenance=provenance, validation=validation,
+        expected_payload_sha256=str(scan["payload_sha256"]),
+        expected_file_count=int(scan["file_count"]),
     )
