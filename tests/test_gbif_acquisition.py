@@ -86,3 +86,44 @@ def test_controlled_acquisition_enforces_stream_size_limit(tmp_path: Path) -> No
             opener=_Opener(_Response(b"1234", "https://api.gbif.org/v1/occurrence/download/request/key-3")),
         )
     assert list(tmp_path.iterdir()) == []
+
+
+@pytest.mark.parametrize("download_key", ["../escape", "..", ".", "a/b", r"a\\b"])
+def test_controlled_acquisition_rejects_unsafe_download_key_before_network(
+    tmp_path: Path, download_key: str
+) -> None:
+    class _NeverOpen:
+        def open(self, *_args, **_kwargs):
+            raise AssertionError("network must not be reached")
+
+    with pytest.raises(GbifAcquisitionError, match="download key"):
+        acquire_gbif_archive(
+            "https://api.gbif.org/v1/occurrence/download/request/key-safe",
+            tmp_path,
+            download_key=download_key,
+            doi="10.15468/dl.example",
+            license_id="CC0-1.0",
+            query={"country": "NL"},
+            record_count=1,
+            opener=_NeverOpen(),
+        )
+    assert list(tmp_path.iterdir()) == []
+
+
+def test_controlled_acquisition_rejects_invalid_metadata_before_network(tmp_path: Path) -> None:
+    class _NeverOpen:
+        def open(self, *_args, **_kwargs):
+            raise AssertionError("network must not be reached")
+
+    with pytest.raises(GbifAcquisitionError):
+        acquire_gbif_archive(
+            "https://api.gbif.org/v1/occurrence/download/request/key-4",
+            tmp_path,
+            download_key="key-4",
+            doi="",
+            license_id="CC0-1.0",
+            query={"country": "NL"},
+            record_count=1,
+            opener=_NeverOpen(),
+        )
+    assert list(tmp_path.iterdir()) == []
