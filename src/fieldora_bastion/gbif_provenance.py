@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
 from datetime import UTC, datetime
-import re
 from urllib.parse import urlparse
 
 _SHA256 = re.compile(r"^[0-9a-f]{64}$")
