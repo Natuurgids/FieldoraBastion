@@ -4,6 +4,8 @@ import json
 from pathlib import Path
 
 import pytest
+from cryptography.hazmat.primitives import serialization
+from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 
 from fieldora_bastion.dataset_certification import (
     DatasetCertificationError,
@@ -11,6 +13,21 @@ from fieldora_bastion.dataset_certification import (
     certify_map_dataset,
 )
 from fieldora_bastion.scanner import payload_tree_digest
+
+
+def _signing_key(tmp_path: Path) -> tuple[Path, str]:
+    key = Ed25519PrivateKey.generate()
+    path = tmp_path / "signing-key.pem"
+    path.write_bytes(key.private_bytes(
+        serialization.Encoding.PEM,
+        serialization.PrivateFormat.PKCS8,
+        serialization.NoEncryption(),
+    ))
+    public_der = key.public_key().public_bytes(
+        serialization.Encoding.DER, serialization.PublicFormat.SubjectPublicKeyInfo
+    )
+    import hashlib
+    return path, hashlib.sha256(public_der).hexdigest()[:32]
 
 
 def _scan(path: Path, source: Path) -> Path:
@@ -31,7 +48,7 @@ def test_gbif_certification_binds_source_validation_and_scan(tmp_path: Path) -> 
     )
     package, evidence_path = certify_gbif_dataset(
         source, tmp_path / "out", dataset_id="nl-birds", version="2026-09",
-        signer_key_id="key-1", scan_report=_scan(tmp_path, source),
+        signer_key_id=_signing_key(tmp_path)[1], signing_key=_signing_key(tmp_path)[0], scan_report=_scan(tmp_path, source),
         acquisition_record={
             "download_key": "0003988-260831124212860",
             "doi": "10.15468/dl.example",
@@ -56,7 +73,7 @@ def test_map_certification_rejects_native_format_until_bastion_gdal_passes(tmp_p
     with pytest.raises(DatasetCertificationError, match="GDAL"):
         certify_map_dataset(
             source, tmp_path / "out", dataset_id="base", version="1",
-            signer_key_id="key-1", source_id="maps", license_id="license",
+            signer_key_id=_signing_key(tmp_path)[1], signing_key=_signing_key(tmp_path)[0], source_id="maps", license_id="license",
             scan_report=_scan(tmp_path, source),
         )
 
@@ -74,7 +91,7 @@ def test_dataset_certification_rejects_unclean_scan(tmp_path: Path) -> None:
     with pytest.raises(DatasetCertificationError, match="clean"):
         certify_map_dataset(
             source, tmp_path / "out", dataset_id="base", version="1",
-            signer_key_id="key-1", source_id="maps", license_id="license",
+            signer_key_id=_signing_key(tmp_path)[1], signing_key=_signing_key(tmp_path)[0], source_id="maps", license_id="license",
             scan_report=report,
         )
 
@@ -89,6 +106,6 @@ def test_dataset_certification_rejects_payload_changed_after_scan(tmp_path: Path
     with pytest.raises(DatasetCertificationError, match="changed after malware scan"):
         certify_map_dataset(
             source, tmp_path / "out-changed", dataset_id="base", version="1",
-            signer_key_id="key-1", source_id="maps", license_id="license",
+            signer_key_id=_signing_key(tmp_path)[1], signing_key=_signing_key(tmp_path)[0], source_id="maps", license_id="license",
             scan_report=report,
         )
