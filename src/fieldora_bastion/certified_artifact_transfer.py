@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import base64
 import hashlib
 import json
 import re
@@ -9,6 +10,9 @@ import shutil
 import tempfile
 from pathlib import Path
 from zipfile import ZIP_DEFLATED, ZipFile
+
+from cryptography.hazmat.primitives import serialization
+from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 
 from fieldora_bastion.release_binding import canonical_sha256
 from fieldora_bastion.scanner import ScanError, payload_tree_digest
@@ -29,6 +33,22 @@ def _sha256(path: Path) -> str:
     return digest.hexdigest()
 
 
+def _sign_evidence(evidence_bytes: bytes, signing_key: Path) -> tuple[str, str]:
+    if signing_key.is_symlink() or not signing_key.is_file():
+        raise CertifiedArtifactError("signing key must be a regular non-symlink file")
+    try:
+        key = serialization.load_pem_private_key(signing_key.read_bytes(), password=None)
+    except (OSError, TypeError, ValueError) as exc:
+        raise CertifiedArtifactError("signing key is unreadable or invalid") from exc
+    if not isinstance(key, Ed25519PrivateKey):
+        raise CertifiedArtifactError("signing key must be an Ed25519 private key")
+    public_der = key.public_key().public_bytes(
+        serialization.Encoding.DER, serialization.PublicFormat.SubjectPublicKeyInfo
+    )
+    key_id = hashlib.sha256(public_der).hexdigest()[:32]
+    return key_id, base64.b64encode(key.sign(evidence_bytes)).decode("ascii")
+
+
 def build_certified_artifact_transfer(
     source_root: Path,
     output_root: Path,
@@ -37,6 +57,7 @@ def build_certified_artifact_transfer(
     artifact_id: str,
     version: str,
     signer_key_id: str,
+    signing_key: Path,
     provenance: dict,
     validation: dict,
     expected_payload_sha256: str | None = None,
@@ -87,7 +108,8 @@ def build_certified_artifact_transfer(
     stem = f"{artifact_type}-{artifact_id}-{version}"
     package = output_root / f"{stem}.zip"
     evidence_path = output_root / f"{stem}.certified-artifact.json"
-    if package.exists() or evidence_path.exists():
+    signature_path = output_root / f"{stem}.certified-artifact.sig"
+    if package.exists() or evidence_path.exists() or signature_path.exists():
         raise CertifiedArtifactError("transfer destination already exists")
 
     snapshot_files = sorted(path for path in snapshot.rglob("*") if path.is_file())
@@ -127,8 +149,17 @@ def build_certified_artifact_transfer(
             "protocol_version": 2,
         },
     }
-    evidence_path.write_text(
-        json.dumps(evidence, ensure_ascii=False, sort_keys=True, indent=2) + "\n",
-        encoding="utf-8",
+    evidence_bytes = (
+        json.dumps(evidence, ensure_ascii=False, sort_keys=True, separators=(",", ":")) + "\n"
+    ).encode("utf-8")
+    derived_key_id, signature = _sign_evidence(evidence_bytes, signing_key)
+    if derived_key_id != signer_key_id:
+        raise CertifiedArtifactError("signer key id does not match Ed25519 signing key")
+    evidence_path.write_bytes(evidence_bytes)
+    signature_path.write_text(
+        json.dumps(
+            {"algorithm": "ed25519", "key_id": derived_key_id, "signature": signature},
+            sort_keys=True, separators=(",", ":"),
+        ) + "\n", encoding="utf-8",
     )
     return package, evidence_path
