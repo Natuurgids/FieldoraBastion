@@ -51,6 +51,7 @@ def certify_map_dataset(
     dataset_id: str,
     version: str,
     signer_key_id: str,
+    signing_key: Path,
     source_id: str,
     license_id: str,
     scan_report: Path,
@@ -67,7 +68,7 @@ def certify_map_dataset(
     }
     return build_certified_artifact_transfer(
         source, output, artifact_type="map_dataset", artifact_id=dataset_id,
-        version=version, signer_key_id=signer_key_id,
+        version=version, signer_key_id=signer_key_id, signing_key=signing_key,
         provenance=provenance, validation=validation,
         expected_payload_sha256=str(scan["payload_sha256"]),
         expected_file_count=int(scan["file_count"]),
@@ -81,6 +82,7 @@ def certify_gbif_dataset(
     dataset_id: str,
     version: str,
     signer_key_id: str,
+    signing_key: Path,
     acquisition_record: dict[str, object],
     scan_report: Path,
 ) -> tuple[Path, Path]:
@@ -97,6 +99,6 @@ def certify_gbif_dataset(
     provenance["malware_scan"] = scan
     return build_certified_artifact_transfer(
         source, output, artifact_type="biodiversity_dataset", artifact_id=dataset_id,
-        version=version, signer_key_id=signer_key_id,
+        version=version, signer_key_id=signer_key_id, signing_key=signing_key,
         provenance=provenance, validation=validation,
     )
