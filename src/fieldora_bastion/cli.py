@@ -56,6 +56,7 @@ def _parser() -> argparse.ArgumentParser:
     maps.add_argument("--dataset-id", required=True)
     maps.add_argument("--version", required=True)
     maps.add_argument("--signer-key-id", required=True)
+    maps.add_argument("--signing-key", type=Path, required=True)
     maps.add_argument("--source-id", required=True)
     maps.add_argument("--license-id", required=True)
     maps.add_argument("--scan-report", type=Path, required=True)
@@ -66,6 +67,7 @@ def _parser() -> argparse.ArgumentParser:
     gbif.add_argument("--dataset-id", required=True)
     gbif.add_argument("--version", required=True)
     gbif.add_argument("--signer-key-id", required=True)
+    gbif.add_argument("--signing-key", type=Path, required=True)
     gbif.add_argument("--acquisition-record", type=Path, required=True)
     gbif.add_argument("--scan-report", type=Path, required=True)
 
@@ -98,7 +100,7 @@ def main(argv: list[str] | None = None) -> int:
                 artifact, evidence = certify_map_dataset(
                     args.source, args.output, dataset_id=args.dataset_id,
                     version=args.version, signer_key_id=args.signer_key_id,
-                    source_id=args.source_id, license_id=args.license_id,
+                    signing_key=args.signing_key, source_id=args.source_id, license_id=args.license_id,
                     scan_report=args.scan_report,
                 )
             else:
@@ -106,7 +108,7 @@ def main(argv: list[str] | None = None) -> int:
                 artifact, evidence = certify_gbif_dataset(
                     args.source, args.output, dataset_id=args.dataset_id,
                     version=args.version, signer_key_id=args.signer_key_id,
-                    acquisition_record=acquisition, scan_report=args.scan_report,
+                    signing_key=args.signing_key, acquisition_record=acquisition, scan_report=args.scan_report,
                 )
         except (DatasetCertificationError, OSError, UnicodeDecodeError, json.JSONDecodeError, ValueError) as exc:
             print(json.dumps({"ok": False, "error": str(exc)}, separators=(",", ":")))
