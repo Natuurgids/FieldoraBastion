@@ -39,6 +39,11 @@ def validate_map_dataset(root: Path, *, source_id: str, license_id: str) -> dict
     unsupported = [p.name for p in files if p.suffix.lower() not in _MAP_EXTENSIONS]
     if unsupported:
         raise DatasetValidationError(f"unsupported map file type: {unsupported[0]}")
+    native = [p.name for p in files if p.suffix.lower() in {".gpkg", ".tif", ".tiff", ".mbtiles", ".pmtiles"}]
+    if native:
+        raise DatasetValidationError(
+            f"native geospatial format requires Bastion GDAL validation: {native[0]}"
+        )
     # GeoJSON can be structurally checked without adding native GDAL dependencies.
     geojson_count = 0
     for path in files:
@@ -61,9 +66,6 @@ def validate_map_dataset(root: Path, *, source_id: str, license_id: str) -> dict
         "license_id": license_id,
         "file_count": len(files),
         "geojson_structures_checked": geojson_count,
-        "native_geospatial_validation_required_on_bastion": any(
-            p.suffix.lower() in {".gpkg", ".tif", ".tiff", ".mbtiles", ".pmtiles"} for p in files
-        ),
     }
 
 
