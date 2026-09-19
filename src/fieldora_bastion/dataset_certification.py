@@ -4,8 +4,10 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
+import stat
 import tempfile
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from zipfile import BadZipFile, ZipFile
 
 from fieldora_bastion.certified_artifact_transfer import build_certified_artifact_transfer
@@ -16,6 +18,13 @@ from fieldora_bastion.dataset_validation import (
 )
 from fieldora_bastion.gbif_provenance import validate_gbif_acquisition
 from fieldora_bastion.scanner import ScanError, payload_tree_digest
+
+
+_MAX_ZIP_MEMBERS = 100_000
+_MAX_MEMBER_BYTES = 8 * 1024 * 1024 * 1024
+_MAX_TOTAL_UNCOMPRESSED_BYTES = 64 * 1024 * 1024 * 1024
+_MAX_COMPRESSION_RATIO = 200
+_DRIVE_PREFIX = re.compile(r"^[A-Za-z]:")
 
 
 class DatasetCertificationError(ValueError):
@@ -110,16 +119,52 @@ def certify_gbif_dataset(
         with tempfile.TemporaryDirectory(prefix="fieldora-gbif-validate-") as temporary:
             validation_root = Path(temporary)
             with ZipFile(source, "r") as archive:
-                for info in archive.infolist():
-                    target = (validation_root / info.filename).resolve()
-                    if validation_root.resolve() not in target.parents and target != validation_root.resolve():
+                infos = archive.infolist()
+                if len(infos) > _MAX_ZIP_MEMBERS:
+                    raise DatasetCertificationError("GBIF archive contains too many members")
+                seen: set[str] = set()
+                total_uncompressed = 0
+                for info in infos:
+                    normalized = info.filename.replace("\\", "/")
+                    path = PurePosixPath(normalized)
+                    parts = path.parts
+                    if (
+                        not normalized
+                        or normalized.startswith(("/", "//"))
+                        or _DRIVE_PREFIX.match(normalized)
+                        or any(part in {"", ".", ".."} for part in parts)
+                        or normalized in seen
+                    ):
                         raise DatasetCertificationError("GBIF archive contains an unsafe path")
+                    seen.add(normalized)
+                    mode = info.external_attr >> 16
+                    file_type = stat.S_IFMT(mode)
+                    if file_type not in (0, stat.S_IFREG, stat.S_IFDIR):
+                        raise DatasetCertificationError("GBIF archive contains a special file")
+                    if info.file_size > _MAX_MEMBER_BYTES:
+                        raise DatasetCertificationError("GBIF archive member exceeds size limit")
+                    total_uncompressed += info.file_size
+                    if total_uncompressed > _MAX_TOTAL_UNCOMPRESSED_BYTES:
+                        raise DatasetCertificationError("GBIF archive exceeds uncompressed size limit")
+                    if (
+                        info.file_size > 1024 * 1024
+                        and info.compress_size > 0
+                        and info.file_size / info.compress_size > _MAX_COMPRESSION_RATIO
+                    ):
+                        raise DatasetCertificationError("GBIF archive member compression ratio is unsafe")
                     if info.is_dir():
                         continue
+                    target = validation_root.joinpath(*parts)
                     target.parent.mkdir(parents=True, exist_ok=True)
+                    written = 0
                     with archive.open(info, "r") as stream, target.open("xb") as output_stream:
                         for block in iter(lambda: stream.read(1024 * 1024), b""):
+                            written += len(block)
+                            if written > info.file_size or written > _MAX_MEMBER_BYTES:
+                                raise DatasetCertificationError("GBIF archive member exceeded declared size")
                             output_stream.write(block)
+                    if written != info.file_size:
+                        raise DatasetCertificationError("GBIF archive member size did not match metadata")
             validation = validate_biodiversity_dataset(
                 validation_root,
                 source_id="gbif",
