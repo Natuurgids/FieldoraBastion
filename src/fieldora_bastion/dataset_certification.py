@@ -5,8 +5,8 @@ from __future__ import annotations
 import hashlib
 import json
 import tempfile
-from zipfile import BadZipFile, ZipFile
 from pathlib import Path
+from zipfile import BadZipFile, ZipFile
 
 from fieldora_bastion.certified_artifact_transfer import build_certified_artifact_transfer
 from fieldora_bastion.dataset_validation import (
