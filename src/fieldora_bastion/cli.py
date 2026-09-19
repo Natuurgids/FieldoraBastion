@@ -6,6 +6,7 @@ import argparse
 import json
 from pathlib import Path
 
+from fieldora_bastion.gbif_acquisition import GbifAcquisitionError, acquire_gbif_archive
 from fieldora_bastion.dataset_certification import (
     DatasetCertificationError,
     certify_gbif_dataset,
@@ -61,6 +62,16 @@ def _parser() -> argparse.ArgumentParser:
     maps.add_argument("--license-id", required=True)
     maps.add_argument("--scan-report", type=Path, required=True)
 
+    acquire = sub.add_parser("acquire-gbif-archive")
+    acquire.add_argument("source_url")
+    acquire.add_argument("quarantine", type=Path)
+    acquire.add_argument("--download-key", required=True)
+    acquire.add_argument("--doi", required=True)
+    acquire.add_argument("--license-id", required=True)
+    acquire.add_argument("--query-json", required=True)
+    acquire.add_argument("--record-count", type=int, required=True)
+    acquire.add_argument("--max-bytes", type=int, default=64 * 1024 * 1024 * 1024)
+
     gbif = sub.add_parser("certify-gbif-dataset")
     gbif.add_argument("source", type=Path)
     gbif.add_argument("output", type=Path)
@@ -92,6 +103,25 @@ def main(argv: list[str] | None = None) -> int:
             print(json.dumps({"ok": False, "error": str(exc)}, separators=(",", ":")))
             return 2
         print(json.dumps({"ok": True, **report}, separators=(",", ":")))
+        return 0
+
+    if args.command == "acquire-gbif-archive":
+        try:
+            query = json.loads(args.query_json)
+            if not isinstance(query, dict):
+                raise ValueError("GBIF query JSON must be an object")
+            archive, provenance = acquire_gbif_archive(
+                args.source_url, args.quarantine, download_key=args.download_key,
+                doi=args.doi, license_id=args.license_id, query=query,
+                record_count=args.record_count, max_bytes=args.max_bytes,
+            )
+        except (GbifAcquisitionError, OSError, json.JSONDecodeError, ValueError) as exc:
+            print(json.dumps({"ok": False, "error": str(exc)}, separators=(",", ":")))
+            return 2
+        print(json.dumps(
+            {"ok": True, "archive": str(archive), "acquisition_record": str(provenance)},
+            separators=(",", ":"),
+        ))
         return 0
 
     if args.command in {"certify-map-dataset", "certify-gbif-dataset"}:
