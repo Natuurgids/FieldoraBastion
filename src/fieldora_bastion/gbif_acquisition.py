@@ -5,17 +5,19 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import re
 import tempfile
 from datetime import UTC, datetime
 from pathlib import Path
 from urllib.error import HTTPError, URLError
-from urllib.parse import urlparse
+from urllib.parse import urljoin, urlparse
 from urllib.request import HTTPRedirectHandler, Request, build_opener
 
 from fieldora_bastion.gbif_provenance import GbifProvenanceError, validate_gbif_acquisition
 
 _GBIF_HOSTS = {"gbif.org", "www.gbif.org", "api.gbif.org"}
 _MAX_ARCHIVE_BYTES = 64 * 1024 * 1024 * 1024
+_DOWNLOAD_KEY = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$")
 
 
 class GbifAcquisitionError(ValueError):
@@ -40,9 +42,10 @@ def _approved_url(url: str) -> bool:
 
 class _GbifRedirectHandler(HTTPRedirectHandler):
     def redirect_request(self, req, fp, code, msg, headers, newurl):
-        if not _approved_url(newurl):
+        resolved = urljoin(req.full_url, newurl)
+        if not _approved_url(resolved):
             raise GbifAcquisitionError("GBIF redirect left approved HTTPS hosts")
-        return super().redirect_request(req, fp, code, msg, headers, newurl)
+        return super().redirect_request(req, fp, code, msg, headers, resolved)
 
 
 def acquire_gbif_archive(
@@ -60,6 +63,18 @@ def acquire_gbif_archive(
     """Download into quarantine and generate provenance from bytes Bastion observed."""
     if not _approved_url(source_url):
         raise GbifAcquisitionError("GBIF source URL must use clean HTTPS on an approved GBIF host")
+    if not _DOWNLOAD_KEY.fullmatch(download_key) or download_key in {".", ".."}:
+        raise GbifAcquisitionError("GBIF download key is unsafe for quarantine storage")
+    preflight = {
+        "download_key": download_key, "doi": doi, "source_url": source_url,
+        "retrieved_at": datetime.now(UTC).isoformat().replace("+00:00", "Z"),
+        "license_id": license_id, "query": query, "record_count": record_count,
+        "archive_sha256": "0" * 64, "archive_size": 1,
+    }
+    try:
+        validate_gbif_acquisition(preflight)
+    except GbifProvenanceError as exc:
+        raise GbifAcquisitionError(str(exc)) from exc
     if max_bytes <= 0:
         raise GbifAcquisitionError("GBIF archive size limit must be positive")
     quarantine_root.mkdir(parents=True, exist_ok=True)
