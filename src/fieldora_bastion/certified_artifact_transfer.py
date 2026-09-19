@@ -8,7 +8,6 @@ import re
 from pathlib import Path
 from zipfile import ZIP_DEFLATED, ZipFile
 
-
 ARTIFACT_TYPES = {"ai_model", "map_dataset", "biodiversity_dataset"}
 _SAFE_ID = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$")
 
