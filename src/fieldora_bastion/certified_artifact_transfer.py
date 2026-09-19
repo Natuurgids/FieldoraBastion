@@ -88,7 +88,12 @@ def build_certified_artifact_transfer(
         raise CertifiedArtifactError("artifact source changed after malware scan")
     if expected_file_count is not None and observed_file_count != expected_file_count:
         raise CertifiedArtifactError("artifact file count changed after malware scan")
-    files = sorted(path for path in source_root.rglob("*") if path.is_file())
+    if source_root.is_file():
+        files = [source_root]
+    elif source_root.is_dir():
+        files = sorted(path for path in source_root.rglob("*") if path.is_file())
+    else:
+        raise CertifiedArtifactError("artifact source is unavailable")
     if not files:
         raise CertifiedArtifactError("artifact source is empty")
     snapshot = Path(tempfile.mkdtemp(prefix="fieldora-bastion-snapshot-"))
@@ -98,7 +103,7 @@ def build_certified_artifact_transfer(
             for path in files:
                 if path.is_symlink():
                     raise CertifiedArtifactError("certified transfer must not contain symlinks")
-                relative = path.relative_to(source_root)
+                relative = Path(path.name) if source_root.is_file() else path.relative_to(source_root)
                 destination = snapshot / relative
                 destination.parent.mkdir(parents=True, exist_ok=True)
                 flags = os.O_RDONLY | getattr(os, "O_BINARY", 0) | getattr(os, "O_NOFOLLOW", 0)
