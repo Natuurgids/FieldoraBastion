@@ -3,7 +3,6 @@ from __future__ import annotations
 import hashlib
 import json
 from zipfile import ZIP_DEFLATED, ZipFile
-from pathlib import Path
 
 import pytest
 from cryptography.hazmat.primitives import serialization
