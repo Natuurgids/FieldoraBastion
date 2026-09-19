@@ -6,6 +6,8 @@ that validation occurs before the digest is authorized by the orchestrator.
 
 from __future__ import annotations
 
+import hashlib
+import json
 import re
 import sqlite3
 from pathlib import Path
@@ -13,6 +15,12 @@ from pathlib import Path
 from fieldora_bastion.transfer_broker import BrokerError
 
 _SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
+
+
+def canonical_sha256(value: object) -> str:
+    """Hash canonical JSON for immutable release/evidence bindings."""
+    encoded = json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    return hashlib.sha256(encoded).hexdigest()
 
 
 class ReleaseBindingStore:
