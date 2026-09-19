@@ -58,6 +58,8 @@ def test_gbif_certification_binds_source_validation_and_scan(tmp_path: Path) -> 
             "license_id": "CC-BY-4.0",
             "query": {"country": "NL"},
             "record_count": 1,
+            "archive_sha256": "a" * 64,
+            "archive_size": 12345,
         },
     )
     evidence = json.loads(evidence_path.read_text(encoding="utf-8"))
