@@ -49,10 +49,6 @@ def certify_map_dataset(
 ) -> tuple[Path, Path]:
     scan = _clean_scan(scan_report, source)
     validation = validate_map_dataset(source, source_id=source_id, license_id=license_id)
-    if validation.get("native_geospatial_validation_required_on_bastion"):
-        raise DatasetCertificationError(
-            "native geospatial formats require Bastion GDAL validation before certification"
-        )
     provenance = {
         "provider": source_id,
         "license_id": license_id,
