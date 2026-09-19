@@ -7,8 +7,7 @@ import json
 import re
 import stat
 import tempfile
-from pathlib import Path
-from pathlib import PurePosixPath
+from pathlib import Path, PurePosixPath
 from zipfile import BadZipFile, ZipFile
 
 from fieldora_bastion.certified_artifact_transfer import build_certified_artifact_transfer
@@ -19,7 +18,6 @@ from fieldora_bastion.dataset_validation import (
 )
 from fieldora_bastion.gbif_provenance import validate_gbif_acquisition
 from fieldora_bastion.scanner import ScanError, payload_tree_digest
-
 
 _MAX_ZIP_MEMBERS = 100_000
 _MAX_MEMBER_BYTES = 8 * 1024 * 1024 * 1024
