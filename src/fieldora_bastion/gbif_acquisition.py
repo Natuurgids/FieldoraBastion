@@ -121,11 +121,26 @@ def acquire_gbif_archive(
             acquisition = validate_gbif_acquisition(record)
         except GbifProvenanceError as exc:
             raise GbifAcquisitionError(str(exc)) from exc
-        os.replace(temporary, final)
-        provenance_path.write_text(
-            json.dumps(acquisition.as_provenance(), sort_keys=True, separators=(",", ":")) + "\n",
-            encoding="utf-8",
+        provenance_bytes = (
+            json.dumps(acquisition.as_provenance(), sort_keys=True, separators=(",", ":")) + "\n"
+        ).encode("utf-8")
+        provenance_descriptor, provenance_temporary_name = tempfile.mkstemp(
+            prefix=".gbif-provenance-", suffix=".part", dir=quarantine_root
         )
+        provenance_temporary = Path(provenance_temporary_name)
+        try:
+            with os.fdopen(provenance_descriptor, "wb") as provenance_stream:
+                provenance_stream.write(provenance_bytes)
+                provenance_stream.flush()
+                os.fsync(provenance_stream.fileno())
+            os.replace(temporary, final)
+            try:
+                os.replace(provenance_temporary, provenance_path)
+            except BaseException:
+                final.unlink(missing_ok=True)
+                raise
+        finally:
+            provenance_temporary.unlink(missing_ok=True)
         return final, provenance_path
     except (HTTPError, URLError, OSError) as exc:
         raise GbifAcquisitionError("GBIF archive acquisition failed") from exc
