@@ -6,12 +6,12 @@ import argparse
 import json
 from pathlib import Path
 
-from fieldora_bastion.gbif_acquisition import GbifAcquisitionError, acquire_gbif_archive
 from fieldora_bastion.dataset_certification import (
     DatasetCertificationError,
     certify_gbif_dataset,
     certify_map_dataset,
 )
+from fieldora_bastion.gbif_acquisition import GbifAcquisitionError, acquire_gbif_archive
 from fieldora_bastion.model_bundle import BundleBuildError, build_model_bundle
 from fieldora_bastion.scanner import ScanError, scan_with_clamav
 from fieldora_bastion.security_install_transfer import (
