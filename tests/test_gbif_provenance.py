@@ -1,0 +1,50 @@
+from __future__ import annotations
+
+import pytest
+
+from fieldora_bastion.gbif_provenance import GbifProvenanceError, validate_gbif_acquisition
+
+
+def _record() -> dict[str, object]:
+    return {
+        "download_key": "0003988-260831124212860",
+        "doi": "10.15468/dl.example",
+        "source_url": "https://www.gbif.org/occurrence/download/0003988-260831124212860",
+        "retrieved_at": "2026-09-18T12:00:00Z",
+        "license_id": "CC-BY-4.0",
+        "query": {"country": "NL", "hasCoordinate": True},
+        "record_count": 42,
+    }
+
+
+def test_gbif_acquisition_preserves_source_facts() -> None:
+    acquisition = validate_gbif_acquisition(_record())
+    evidence = acquisition.as_provenance()
+    assert evidence["provider"] == "gbif"
+    assert evidence["download_key"] == "0003988-260831124212860"
+    assert evidence["record_count"] == 42
+    assert evidence["query"]["country"] == "NL"
+
+
+@pytest.mark.parametrize(
+    ("field", "value"),
+    [
+        ("download_key", ""),
+        ("doi", ""),
+        ("license_id", ""),
+        ("query", {}),
+        ("record_count", -1),
+    ],
+)
+def test_gbif_acquisition_fails_closed_on_missing_provenance(field: str, value: object) -> None:
+    record = _record()
+    record[field] = value
+    with pytest.raises(GbifProvenanceError):
+        validate_gbif_acquisition(record)
+
+
+def test_gbif_acquisition_rejects_non_gbif_source() -> None:
+    record = _record()
+    record["source_url"] = "https://example.invalid/gbif.zip"
+    with pytest.raises(GbifProvenanceError, match="gbif.org"):
+        validate_gbif_acquisition(record)
