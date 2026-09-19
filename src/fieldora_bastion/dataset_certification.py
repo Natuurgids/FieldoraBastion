@@ -6,7 +6,11 @@ import json
 from pathlib import Path
 
 from fieldora_bastion.certified_artifact_transfer import build_certified_artifact_transfer
-from fieldora_bastion.dataset_validation import validate_biodiversity_dataset, validate_map_dataset
+from fieldora_bastion.dataset_validation import (
+    DatasetValidationError,
+    validate_biodiversity_dataset,
+    validate_map_dataset,
+)
 from fieldora_bastion.gbif_provenance import validate_gbif_acquisition
 from fieldora_bastion.scanner import ScanError, payload_tree_digest
 
@@ -48,7 +52,10 @@ def certify_map_dataset(
     scan_report: Path,
 ) -> tuple[Path, Path]:
     scan = _clean_scan(scan_report, source)
-    validation = validate_map_dataset(source, source_id=source_id, license_id=license_id)
+    try:
+        validation = validate_map_dataset(source, source_id=source_id, license_id=license_id)
+    except DatasetValidationError as exc:
+        raise DatasetCertificationError(str(exc)) from exc
     provenance = {
         "provider": source_id,
         "license_id": license_id,
