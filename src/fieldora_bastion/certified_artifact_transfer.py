@@ -9,6 +9,7 @@ from pathlib import Path
 from zipfile import ZIP_DEFLATED, ZipFile
 
 from fieldora_bastion.release_binding import canonical_sha256
+from fieldora_bastion.scanner import ScanError, payload_tree_digest
 
 ARTIFACT_TYPES = {"ai_model", "map_dataset", "biodiversity_dataset"}
 _SAFE_ID = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$")
@@ -36,6 +37,8 @@ def build_certified_artifact_transfer(
     signer_key_id: str,
     provenance: dict,
     validation: dict,
+    expected_payload_sha256: str | None = None,
+    expected_file_count: int | None = None,
 ) -> tuple[Path, Path]:
     """Package validated external material without any Fieldora dependency.
 
@@ -53,6 +56,14 @@ def build_certified_artifact_transfer(
         raise CertifiedArtifactError("type-specific validation must be approved")
 
     source_root = source_root.resolve()
+    try:
+        observed_file_count, observed_payload_sha256 = payload_tree_digest(source_root)
+    except ScanError as exc:
+        raise CertifiedArtifactError("artifact source cannot be bound safely") from exc
+    if expected_payload_sha256 is not None and observed_payload_sha256 != expected_payload_sha256:
+        raise CertifiedArtifactError("artifact source changed after malware scan")
+    if expected_file_count is not None and observed_file_count != expected_file_count:
+        raise CertifiedArtifactError("artifact file count changed after malware scan")
     files = sorted(path for path in source_root.rglob("*") if path.is_file())
     if not files:
         raise CertifiedArtifactError("artifact source is empty")
@@ -83,6 +94,8 @@ def build_certified_artifact_transfer(
         "artifact_type": artifact_type,
         "artifact_id": artifact_id,
         "version": version,
+        "payload_sha256": observed_payload_sha256,
+        "file_count": observed_file_count,
         "artifact": {
             "package_id": package.name,
             "sha256": package_sha,
