@@ -46,9 +46,10 @@ def test_gbif_certification_binds_source_validation_and_scan(tmp_path: Path) -> 
     (source / "occurrence.csv").write_text(
         "occurrenceID,scientificName\n1,Parus major\n", encoding="utf-8"
     )
+    signing_key, key_id = _signing_key(tmp_path)
     package, evidence_path = certify_gbif_dataset(
         source, tmp_path / "out", dataset_id="nl-birds", version="2026-09",
-        signer_key_id=_signing_key(tmp_path)[1], signing_key=_signing_key(tmp_path)[0], scan_report=_scan(tmp_path, source),
+        signer_key_id=key_id, signing_key=signing_key, scan_report=_scan(tmp_path, source),
         acquisition_record={
             "download_key": "0003988-260831124212860",
             "doi": "10.15468/dl.example",
@@ -71,9 +72,10 @@ def test_map_certification_rejects_native_format_until_bastion_gdal_passes(tmp_p
     source.mkdir()
     (source / "map.gpkg").write_bytes(b"SQLite format 3\x00")
     with pytest.raises(DatasetCertificationError, match="GDAL"):
+        signing_key, key_id = _signing_key(tmp_path)
         certify_map_dataset(
             source, tmp_path / "out", dataset_id="base", version="1",
-            signer_key_id=_signing_key(tmp_path)[1], signing_key=_signing_key(tmp_path)[0], source_id="maps", license_id="license",
+            signer_key_id=key_id, signing_key=signing_key, source_id="maps", license_id="license",
             scan_report=_scan(tmp_path, source),
         )
 
@@ -104,8 +106,9 @@ def test_dataset_certification_rejects_payload_changed_after_scan(tmp_path: Path
     report = _scan(tmp_path, source)
     payload.write_text('{"type":"FeatureCollection","features":[{"type":"Feature","properties":{},"geometry":null}]}', encoding="utf-8")
     with pytest.raises(DatasetCertificationError, match="changed after malware scan"):
+        signing_key, key_id = _signing_key(tmp_path)
         certify_map_dataset(
             source, tmp_path / "out-changed", dataset_id="base", version="1",
-            signer_key_id=_signing_key(tmp_path)[1], signing_key=_signing_key(tmp_path)[0], source_id="maps", license_id="license",
+            signer_key_id=key_id, signing_key=signing_key, source_id="maps", license_id="license",
             scan_report=report,
         )
