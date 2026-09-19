@@ -98,3 +98,52 @@ def test_rejects_payload_not_matching_scan_binding(tmp_path: Path) -> None:
             expected_payload_sha256="0" * 64,
             expected_file_count=1,
         )
+
+
+def test_signing_failure_leaves_no_partial_transfer_outputs(tmp_path: Path) -> None:
+    source = tmp_path / "source-signing-failure"
+    source.mkdir()
+    (source / "payload.dat").write_bytes(b"payload")
+    out = tmp_path / "out-signing-failure"
+    invalid_key = tmp_path / "invalid.pem"
+    invalid_key.write_text("not a private key", encoding="utf-8")
+
+    with pytest.raises(CertifiedArtifactError, match="signing key"):
+        build_certified_artifact_transfer(
+            source,
+            out,
+            artifact_type="map_dataset",
+            artifact_id="map",
+            version="1",
+            signer_key_id="a" * 32,
+            signing_key=invalid_key,
+            provenance={"source_id": "source"},
+            validation={"approved": True},
+        )
+
+    assert out.is_dir()
+    assert list(out.iterdir()) == []
+
+
+def test_signer_identity_failure_leaves_no_partial_transfer_outputs(tmp_path: Path) -> None:
+    source = tmp_path / "source-key-id-failure"
+    source.mkdir()
+    (source / "payload.dat").write_bytes(b"payload")
+    out = tmp_path / "out-key-id-failure"
+    signing_key, _ = _signing_key(tmp_path)
+
+    with pytest.raises(CertifiedArtifactError, match="key id"):
+        build_certified_artifact_transfer(
+            source,
+            out,
+            artifact_type="map_dataset",
+            artifact_id="map",
+            version="1",
+            signer_key_id="0" * 32,
+            signing_key=signing_key,
+            provenance={"source_id": "source"},
+            validation={"approved": True},
+        )
+
+    assert out.is_dir()
+    assert list(out.iterdir()) == []
