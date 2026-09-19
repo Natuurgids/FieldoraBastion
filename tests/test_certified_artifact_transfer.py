@@ -51,3 +51,22 @@ def test_rejects_unvalidated_artifact(tmp_path: Path) -> None:
             provenance={"source_id": "source"},
             validation={"approved": False},
         )
+
+
+def test_rejects_payload_not_matching_scan_binding(tmp_path: Path) -> None:
+    source = tmp_path / "source-bound"
+    source.mkdir()
+    (source / "payload.dat").write_bytes(b"changed")
+    with pytest.raises(CertifiedArtifactError, match="changed after malware scan"):
+        build_certified_artifact_transfer(
+            source,
+            tmp_path / "out-bound",
+            artifact_type="map_dataset",
+            artifact_id="map",
+            version="1",
+            signer_key_id="key",
+            provenance={"source_id": "source"},
+            validation={"approved": True},
+            expected_payload_sha256="0" * 64,
+            expected_file_count=1,
+        )
