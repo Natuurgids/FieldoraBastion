@@ -8,13 +8,14 @@ from pathlib import Path
 from fieldora_bastion.certified_artifact_transfer import build_certified_artifact_transfer
 from fieldora_bastion.dataset_validation import validate_biodiversity_dataset, validate_map_dataset
 from fieldora_bastion.gbif_provenance import validate_gbif_acquisition
+from fieldora_bastion.scanner import ScanError, _preflight
 
 
 class DatasetCertificationError(ValueError):
     """Raised when a dataset cannot cross the Bastion certification boundary."""
 
 
-def _clean_scan(report_path: Path) -> dict[str, object]:
+def _clean_scan(report_path: Path, source: Path) -> dict[str, object]:
     if not report_path.is_file() or report_path.is_symlink():
         raise DatasetCertificationError("clean malware scan report is required")
     try:
@@ -23,8 +24,15 @@ def _clean_scan(report_path: Path) -> dict[str, object]:
         raise DatasetCertificationError("malware scan report is unreadable") from exc
     if report.get("result") != "clean" or report.get("scanner") != "clamav":
         raise DatasetCertificationError("dataset requires an approved clean ClamAV scan")
-    if not str(report.get("payload_sha256") or "").strip():
+    expected = str(report.get("payload_sha256") or "").strip()
+    if not expected:
         raise DatasetCertificationError("scan report is not bound to a payload digest")
+    try:
+        _, observed = _preflight(source, 64 * 1024 * 1024 * 1024)
+    except ScanError as exc:
+        raise DatasetCertificationError("dataset cannot be rehashed safely") from exc
+    if observed != expected:
+        raise DatasetCertificationError("dataset changed after malware scan")
     return report
 
 
@@ -39,7 +47,7 @@ def certify_map_dataset(
     license_id: str,
     scan_report: Path,
 ) -> tuple[Path, Path]:
-    scan = _clean_scan(scan_report)
+    scan = _clean_scan(scan_report, source)
     validation = validate_map_dataset(source, source_id=source_id, license_id=license_id)
     if validation.get("native_geospatial_validation_required_on_bastion"):
         raise DatasetCertificationError(
@@ -67,7 +75,7 @@ def certify_gbif_dataset(
     acquisition_record: dict[str, object],
     scan_report: Path,
 ) -> tuple[Path, Path]:
-    scan = _clean_scan(scan_report)
+    scan = _clean_scan(scan_report, source)
     acquisition = validate_gbif_acquisition(acquisition_record)
     provenance = acquisition.as_provenance()
     validation = validate_biodiversity_dataset(
