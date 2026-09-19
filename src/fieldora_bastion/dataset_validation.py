@@ -61,7 +61,7 @@ def validate_map_dataset(root: Path, *, source_id: str, license_id: str) -> dict
         "license_id": license_id,
         "file_count": len(files),
         "geojson_structures_checked": geojson_count,
-        "native_geospatial_validation_required_on_receiver": any(
+        "native_geospatial_validation_required_on_bastion": any(
             p.suffix.lower() in {".gpkg", ".tif", ".tiff", ".mbtiles", ".pmtiles"} for p in files
         ),
     }
