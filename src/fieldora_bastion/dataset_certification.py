@@ -7,7 +7,8 @@ import json
 import re
 import stat
 import tempfile
-from pathlib import Path, PurePosixPath
+from pathlib import Path
+from pathlib import PurePosixPath
 from zipfile import BadZipFile, ZipFile
 
 from fieldora_bastion.certified_artifact_transfer import build_certified_artifact_transfer
