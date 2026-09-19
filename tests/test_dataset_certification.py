@@ -5,7 +5,7 @@ from pathlib import Path
 
 import pytest
 
-from fieldora_bastion.scanner import _preflight
+from fieldora_bastion.scanner import payload_tree_digest
 
 from fieldora_bastion.dataset_certification import (
     DatasetCertificationError,
@@ -16,7 +16,7 @@ from fieldora_bastion.dataset_certification import (
 
 def _scan(path: Path, source: Path) -> Path:
     report = path / "scan.json"
-    _, payload_sha256 = _preflight(source, 64 * 1024 * 1024)
+    _, payload_sha256 = payload_tree_digest(source, 64 * 1024 * 1024)
     report.write_text(json.dumps({
         "result": "clean", "scanner": "clamav", "payload_sha256": payload_sha256
     }), encoding="utf-8")
