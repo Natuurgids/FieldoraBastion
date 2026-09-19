@@ -15,9 +15,10 @@ from fieldora_bastion.scanner import payload_tree_digest
 
 def _scan(path: Path, source: Path) -> Path:
     report = path / "scan.json"
-    _, payload_sha256 = payload_tree_digest(source, 64 * 1024 * 1024)
+    file_count, payload_sha256 = payload_tree_digest(source, 64 * 1024 * 1024)
     report.write_text(json.dumps({
-        "result": "clean", "scanner": "clamav", "payload_sha256": payload_sha256
+        "result": "clean", "scanner": "clamav", "payload_sha256": payload_sha256,
+        "file_count": file_count
     }), encoding="utf-8")
     return report
 
