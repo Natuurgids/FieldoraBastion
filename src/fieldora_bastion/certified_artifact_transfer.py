@@ -131,49 +131,54 @@ def build_certified_artifact_transfer(
         shutil.rmtree(snapshot, ignore_errors=True)
     if package is None:
         raise CertifiedArtifactError("artifact package was not created")
-    package_sha = _sha256(package)
-    release = {
-        "artifact_type": artifact_type,
-        "artifact_id": artifact_id,
-        "version": version,
-        "package_sha256": package_sha,
-        "signer_key_id": signer_key_id,
-    }
-    evidence = {
-        "protocol_version": 2,
-        "release_id": f"fieldora-artifact:{artifact_type}:{artifact_id}:{version}",
-        "artifact_type": artifact_type,
-        "artifact_id": artifact_id,
-        "version": version,
-        "payload_sha256": observed_payload_sha256,
-        "file_count": observed_file_count,
-        "artifact": {
-            "package_id": package.name,
-            "sha256": package_sha,
-            "size": package.stat().st_size,
-        },
-        "release_digest": canonical_sha256(release),
-        "signer_key_id": signer_key_id,
-        "source_provenance": provenance,
-        "type_validation": validation,
-        "secure_transfer": {
-            "provider_id": "fieldora-bastion",
-            "capability": "certified-artifact-transfer",
+    try:
+        package_sha = _sha256(package)
+        release = {
+            "artifact_type": artifact_type,
+            "artifact_id": artifact_id,
+            "version": version,
+            "package_sha256": package_sha,
+            "signer_key_id": signer_key_id,
+        }
+        evidence = {
             "protocol_version": 2,
-        },
-    }
-    evidence_bytes = (
-        json.dumps(evidence, ensure_ascii=False, sort_keys=True, separators=(",", ":")) + "\n"
-    ).encode("utf-8")
-    derived_key_id, signature = _sign_evidence(evidence_bytes, signing_key)
-    if derived_key_id != signer_key_id:
+            "release_id": f"fieldora-artifact:{artifact_type}:{artifact_id}:{version}",
+            "artifact_type": artifact_type,
+            "artifact_id": artifact_id,
+            "version": version,
+            "payload_sha256": observed_payload_sha256,
+            "file_count": observed_file_count,
+            "artifact": {
+                "package_id": package.name,
+                "sha256": package_sha,
+                "size": package.stat().st_size,
+            },
+            "release_digest": canonical_sha256(release),
+            "signer_key_id": signer_key_id,
+            "source_provenance": provenance,
+            "type_validation": validation,
+            "secure_transfer": {
+                "provider_id": "fieldora-bastion",
+                "capability": "certified-artifact-transfer",
+                "protocol_version": 2,
+            },
+        }
+        evidence_bytes = (
+            json.dumps(evidence, ensure_ascii=False, sort_keys=True, separators=(",", ":")) + "\n"
+        ).encode("utf-8")
+        derived_key_id, signature = _sign_evidence(evidence_bytes, signing_key)
+        if derived_key_id != signer_key_id:
+            raise CertifiedArtifactError("signer key id does not match Ed25519 signing key")
+        evidence_path.write_bytes(evidence_bytes)
+        signature_path.write_text(
+            json.dumps(
+                {"algorithm": "ed25519", "key_id": derived_key_id, "signature": signature},
+                sort_keys=True, separators=(",", ":"),
+            ) + "\n", encoding="utf-8",
+        )
+    except BaseException:
+        signature_path.unlink(missing_ok=True)
+        evidence_path.unlink(missing_ok=True)
         package.unlink(missing_ok=True)
-        raise CertifiedArtifactError("signer key id does not match Ed25519 signing key")
-    evidence_path.write_bytes(evidence_bytes)
-    signature_path.write_text(
-        json.dumps(
-            {"algorithm": "ed25519", "key_id": derived_key_id, "signature": signature},
-            sort_keys=True, separators=(",", ":"),
-        ) + "\n", encoding="utf-8",
-    )
+        raise
     return package, evidence_path
