@@ -5,7 +5,7 @@ from pathlib import Path
 
 import pytest
 from cryptography.hazmat.primitives import serialization
-from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
+from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey, Ed25519PublicKey
 
 from fieldora_bastion.certified_artifact_transfer import (
     CertifiedArtifactError,
@@ -33,6 +33,13 @@ def test_certified_artifact_types_are_standalone(tmp_path: Path, artifact_type: 
     )
     evidence = json.loads(evidence_path.read_text(encoding="utf-8"))
     assert package.is_file()
+    signature_path = evidence_path.with_suffix(".sig")
+    signature = json.loads(signature_path.read_text(encoding="utf-8"))
+    public_key = serialization.load_pem_private_key(signing_key.read_bytes(), password=None).public_key()
+    assert isinstance(public_key, Ed25519PublicKey)
+    import base64
+    public_key.verify(base64.b64decode(signature["signature"]), evidence_path.read_bytes())
+    assert signature["key_id"] == key_id
     assert evidence["artifact_type"] == artifact_type
     assert evidence["source_provenance"]["source_id"] == "upstream-example"
     serialized = json.dumps(evidence).lower()
