@@ -154,6 +154,7 @@ def build_certified_artifact_transfer(
     ).encode("utf-8")
     derived_key_id, signature = _sign_evidence(evidence_bytes, signing_key)
     if derived_key_id != signer_key_id:
+        package.unlink(missing_ok=True)
         raise CertifiedArtifactError("signer key id does not match Ed25519 signing key")
     evidence_path.write_bytes(evidence_bytes)
     signature_path.write_text(
