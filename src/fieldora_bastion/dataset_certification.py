@@ -8,7 +8,7 @@ from pathlib import Path
 from fieldora_bastion.certified_artifact_transfer import build_certified_artifact_transfer
 from fieldora_bastion.dataset_validation import validate_biodiversity_dataset, validate_map_dataset
 from fieldora_bastion.gbif_provenance import validate_gbif_acquisition
-from fieldora_bastion.scanner import ScanError, _preflight
+from fieldora_bastion.scanner import ScanError, payload_tree_digest
 
 
 class DatasetCertificationError(ValueError):
@@ -28,7 +28,7 @@ def _clean_scan(report_path: Path, source: Path) -> dict[str, object]:
     if not expected:
         raise DatasetCertificationError("scan report is not bound to a payload digest")
     try:
-        _, observed = _preflight(source, 64 * 1024 * 1024 * 1024)
+        _, observed = payload_tree_digest(source, 64 * 1024 * 1024 * 1024)
     except ScanError as exc:
         raise DatasetCertificationError("dataset cannot be rehashed safely") from exc
     if observed != expected:
