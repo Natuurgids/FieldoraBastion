@@ -116,3 +116,59 @@ def test_dataset_certification_rejects_payload_changed_after_scan(tmp_path: Path
             signer_key_id=key_id, signing_key=signing_key, source_id="maps", license_id="license",
             scan_report=report,
         )
+
+
+def _gbif_record(source: Path) -> dict[str, object]:
+    payload = source.read_bytes()
+    return {
+        "download_key": "0003988-260831124212860",
+        "doi": "10.15468/dl.example",
+        "source_url": "https://www.gbif.org/occurrence/download/0003988-260831124212860",
+        "retrieved_at": "2026-09-18T12:00:00Z",
+        "license_id": "CC-BY-4.0",
+        "query": {"country": "NL"},
+        "record_count": 1,
+        "archive_sha256": hashlib.sha256(payload).hexdigest(),
+        "archive_size": len(payload),
+    }
+
+
+@pytest.mark.parametrize("member", ["../escape.csv", "/absolute.csv", "C:/escape.csv", r"..\\escape.csv"])
+def test_gbif_certification_rejects_unsafe_archive_paths(tmp_path: Path, member: str) -> None:
+    source = tmp_path / "unsafe.zip"
+    with ZipFile(source, "w", compression=ZIP_DEFLATED) as archive:
+        archive.writestr(member, "occurrenceID,scientificName\n1,Parus major\n")
+    signing_key, key_id = _signing_key(tmp_path)
+    with pytest.raises(DatasetCertificationError, match="unsafe path"):
+        certify_gbif_dataset(
+            source, tmp_path / "out", dataset_id="unsafe", version="1",
+            signer_key_id=key_id, signing_key=signing_key,
+            acquisition_record=_gbif_record(source), scan_report=_scan(tmp_path, source),
+        )
+
+
+def test_gbif_certification_rejects_acquisition_digest_mismatch(tmp_path: Path) -> None:
+    source = tmp_path / "digest.zip"
+    with ZipFile(source, "w", compression=ZIP_DEFLATED) as archive:
+        archive.writestr("occurrence.csv", "occurrenceID,scientificName\n1,Parus major\n")
+    record = _gbif_record(source)
+    record["archive_sha256"] = "0" * 64
+    signing_key, key_id = _signing_key(tmp_path)
+    with pytest.raises(DatasetCertificationError, match="digest does not match"):
+        certify_gbif_dataset(
+            source, tmp_path / "out", dataset_id="digest", version="1",
+            signer_key_id=key_id, signing_key=signing_key,
+            acquisition_record=record, scan_report=_scan(tmp_path, source),
+        )
+
+
+def test_gbif_certification_rejects_invalid_zip(tmp_path: Path) -> None:
+    source = tmp_path / "invalid.zip"
+    source.write_bytes(b"not-a-zip")
+    signing_key, key_id = _signing_key(tmp_path)
+    with pytest.raises(DatasetCertificationError, match="valid dataset ZIP"):
+        certify_gbif_dataset(
+            source, tmp_path / "out", dataset_id="invalid", version="1",
+            signer_key_id=key_id, signing_key=signing_key,
+            acquisition_record=_gbif_record(source), scan_report=_scan(tmp_path, source),
+        )
