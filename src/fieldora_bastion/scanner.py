@@ -41,8 +41,13 @@ def payload_tree_digest(root: Path, max_total_bytes: int = _MAX_TOTAL_BYTES) -> 
     if root.is_symlink():
         raise ScanError("scan source root must not be a symlink")
     root = root.resolve()
+    if root.is_file():
+        size = root.stat().st_size
+        if size > max_total_bytes:
+            raise ScanError("scan source exceeds configured maximum total size")
+        return 1, _payload_tree_sha256([(root.name, size, _file_sha256(root))])
     if not root.is_dir():
-        raise ScanError("scan source root must be a directory")
+        raise ScanError("scan source root must be a file or directory")
     files = sorted(path for path in root.rglob("*") if path.is_file() or path.is_symlink())
     if not files:
         raise ScanError("scan source contains no files")
