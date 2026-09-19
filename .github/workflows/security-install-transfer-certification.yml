@@ -56,5 +56,6 @@ jobs:
           fieldora-bastion export-security-install --help >/dev/null
           fieldora-bastion certify-map-dataset --help >/dev/null
           fieldora-bastion certify-gbif-dataset --help >/dev/null
+          fieldora-bastion acquire-gbif-archive --help >/dev/null
           ! grep -Ei 'postgres|fieldora-access-dsn|fieldora.*ca' src/fieldora_bastion/security_install_transfer.py
           ! grep -E '"transfer_receipt"|"independent_verification"' src/fieldora_bastion/security_install_transfer.py
