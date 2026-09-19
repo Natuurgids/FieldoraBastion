@@ -92,6 +92,7 @@ def build_certified_artifact_transfer(
     if not files:
         raise CertifiedArtifactError("artifact source is empty")
     snapshot = Path(tempfile.mkdtemp(prefix="fieldora-bastion-snapshot-"))
+    package: Path | None = None
     try:
         try:
             for path in files:
@@ -113,13 +114,14 @@ def build_certified_artifact_transfer(
             raise CertifiedArtifactError("artifact snapshot could not be created safely") from exc
         if snapshot_sha256 != observed_payload_sha256 or snapshot_count != observed_file_count:
             raise CertifiedArtifactError("artifact source changed while creating transfer snapshot")
+
         output_root.mkdir(parents=True, exist_ok=True)
-    stem = f"{artifact_type}-{artifact_id}-{version}"
-    package = output_root / f"{stem}.zip"
-    evidence_path = output_root / f"{stem}.certified-artifact.json"
-    signature_path = output_root / f"{stem}.certified-artifact.sig"
-    if package.exists() or evidence_path.exists() or signature_path.exists():
-        raise CertifiedArtifactError("transfer destination already exists")
+        stem = f"{artifact_type}-{artifact_id}-{version}"
+        package = output_root / f"{stem}.zip"
+        evidence_path = output_root / f"{stem}.certified-artifact.json"
+        signature_path = output_root / f"{stem}.certified-artifact.sig"
+        if package.exists() or evidence_path.exists() or signature_path.exists():
+            raise CertifiedArtifactError("transfer destination already exists")
 
         snapshot_files = sorted(path for path in snapshot.rglob("*") if path.is_file())
         with ZipFile(package, "x", compression=ZIP_DEFLATED) as archive:
@@ -127,6 +129,8 @@ def build_certified_artifact_transfer(
                 archive.write(path, path.relative_to(snapshot).as_posix())
     finally:
         shutil.rmtree(snapshot, ignore_errors=True)
+    if package is None:
+        raise CertifiedArtifactError("artifact package was not created")
     package_sha = _sha256(package)
     release = {
         "artifact_type": artifact_type,
