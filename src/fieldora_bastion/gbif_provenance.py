@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from urllib.parse import urlparse
 
 
@@ -52,7 +52,7 @@ def validate_gbif_acquisition(record: dict[str, object]) -> GbifAcquisition:
         observed = datetime.fromisoformat(retrieved_at.replace("Z", "+00:00"))
     except ValueError as exc:
         raise GbifProvenanceError("GBIF retrieval time must be ISO-8601") from exc
-    if observed.tzinfo is None or observed > datetime.now(timezone.utc):
+    if observed.tzinfo is None or observed > datetime.now(UTC):
         raise GbifProvenanceError("GBIF retrieval time must be timezone-aware and not in the future")
     if not isinstance(query, dict) or not query:
         raise GbifProvenanceError("GBIF acquisition query is required")
