@@ -8,17 +8,14 @@ import re
 from pathlib import Path
 from zipfile import ZIP_DEFLATED, ZipFile
 
+from fieldora_bastion.release_binding import canonical_sha256
+
 ARTIFACT_TYPES = {"ai_model", "map_dataset", "biodiversity_dataset"}
 _SAFE_ID = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$")
 
 
 class CertifiedArtifactError(ValueError):
     """Raised when a standalone certified-artifact transfer is unsafe."""
-
-
-def _canonical_sha256(value: object) -> str:
-    encoded = json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode("utf-8")
-    return hashlib.sha256(encoded).hexdigest()
 
 
 def _sha256(path: Path) -> str:
@@ -91,7 +88,7 @@ def build_certified_artifact_transfer(
             "sha256": package_sha,
             "size": package.stat().st_size,
         },
-        "release_digest": _canonical_sha256(release),
+        "release_digest": canonical_sha256(release),
         "signer_key_id": signer_key_id,
         "source_provenance": provenance,
         "type_validation": validation,
