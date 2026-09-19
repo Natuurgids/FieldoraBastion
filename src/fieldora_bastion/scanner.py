@@ -35,7 +35,7 @@ def _payload_tree_sha256(entries: list[tuple[str, int, str]]) -> str:
     return digest.hexdigest()
 
 
-def _preflight(root: Path, max_total_bytes: int) -> tuple[int, str]:
+def payload_tree_digest(root: Path, max_total_bytes: int = _MAX_TOTAL_BYTES) -> tuple[int, str]:
     if max_total_bytes <= 0:
         raise ScanError("maximum scan size must be positive")
     if root.is_symlink():
@@ -99,7 +99,7 @@ def scan_with_clamav(
     ClamAV definitions are supplied from a read-only directory. The adapter does
     not update definitions and never invokes a shell.
     """
-    file_count, payload_sha256 = _preflight(source_root, max_total_bytes)
+    file_count, payload_sha256 = payload_tree_digest(source_root, max_total_bytes)
     executable = shutil.which("clamscan")
     if not executable:
         raise ScanError("clamscan is unavailable")
