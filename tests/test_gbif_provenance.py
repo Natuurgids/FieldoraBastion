@@ -50,7 +50,7 @@ def test_gbif_acquisition_fails_closed_on_missing_provenance(field: str, value: 
 def test_gbif_acquisition_rejects_non_gbif_source() -> None:
     record = _record()
     record["source_url"] = "https://example.invalid/gbif.zip"
-    with pytest.raises(GbifProvenanceError, match="gbif.org"):
+    with pytest.raises(GbifProvenanceError, match="approved GBIF host"):
         validate_gbif_acquisition(record)
 
 
