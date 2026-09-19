@@ -5,6 +5,8 @@ from pathlib import Path
 
 import pytest
 
+from fieldora_bastion.scanner import _preflight
+
 from fieldora_bastion.dataset_certification import (
     DatasetCertificationError,
     certify_gbif_dataset,
@@ -12,10 +14,11 @@ from fieldora_bastion.dataset_certification import (
 )
 
 
-def _scan(path: Path) -> Path:
+def _scan(path: Path, source: Path) -> Path:
     report = path / "scan.json"
+    _, payload_sha256 = _preflight(source, 64 * 1024 * 1024)
     report.write_text(json.dumps({
-        "result": "clean", "scanner": "clamav", "payload_sha256": "a" * 64
+        "result": "clean", "scanner": "clamav", "payload_sha256": payload_sha256
     }), encoding="utf-8")
     return report
 
@@ -28,7 +31,7 @@ def test_gbif_certification_binds_source_validation_and_scan(tmp_path: Path) -> 
     )
     package, evidence_path = certify_gbif_dataset(
         source, tmp_path / "out", dataset_id="nl-birds", version="2026-09",
-        signer_key_id="key-1", scan_report=_scan(tmp_path),
+        signer_key_id="key-1", scan_report=_scan(tmp_path, source),
         acquisition_record={
             "download_key": "0003988-260831124212860",
             "doi": "10.15468/dl.example",
@@ -54,7 +57,7 @@ def test_map_certification_rejects_native_format_until_bastion_gdal_passes(tmp_p
         certify_map_dataset(
             source, tmp_path / "out", dataset_id="base", version="1",
             signer_key_id="key-1", source_id="maps", license_id="license",
-            scan_report=_scan(tmp_path),
+            scan_report=_scan(tmp_path, source),
         )
 
 
@@ -71,6 +74,21 @@ def test_dataset_certification_rejects_unclean_scan(tmp_path: Path) -> None:
     with pytest.raises(DatasetCertificationError, match="clean"):
         certify_map_dataset(
             source, tmp_path / "out", dataset_id="base", version="1",
+            signer_key_id="key-1", source_id="maps", license_id="license",
+            scan_report=report,
+        )
+
+
+def test_dataset_certification_rejects_payload_changed_after_scan(tmp_path: Path) -> None:
+    source = tmp_path / "map-changed"
+    source.mkdir()
+    payload = source / "map.geojson"
+    payload.write_text('{"type":"FeatureCollection","features":[]}', encoding="utf-8")
+    report = _scan(tmp_path, source)
+    payload.write_text('{"type":"FeatureCollection","features":[{"type":"Feature","properties":{},"geometry":null}]}', encoding="utf-8")
+    with pytest.raises(DatasetCertificationError, match="changed after malware scan"):
+        certify_map_dataset(
+            source, tmp_path / "out-changed", dataset_id="base", version="1",
             signer_key_id="key-1", source_id="maps", license_id="license",
             scan_report=report,
         )
