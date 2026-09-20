@@ -71,6 +71,7 @@ def _parser() -> argparse.ArgumentParser:
     acquire.add_argument("--query-json", required=True)
     acquire.add_argument("--record-count", type=int, required=True)
     acquire.add_argument("--max-bytes", type=int, default=64 * 1024 * 1024 * 1024)
+    acquire.add_argument("--signing-key", type=Path, required=True)
 
     gbif = sub.add_parser("certify-gbif-dataset")
     gbif.add_argument("source", type=Path)
@@ -81,6 +82,7 @@ def _parser() -> argparse.ArgumentParser:
     gbif.add_argument("--signing-key", type=Path, required=True)
     gbif.add_argument("--acquisition-record", type=Path, required=True)
     gbif.add_argument("--scan-report", type=Path, required=True)
+    gbif.add_argument("--acquisition-public-key", type=Path, required=True)
 
     transfer = sub.add_parser("export-security-install")
     transfer.add_argument("bundle", type=Path)
@@ -113,7 +115,7 @@ def main(argv: list[str] | None = None) -> int:
             archive, provenance = acquire_gbif_archive(
                 args.source_url, args.quarantine, download_key=args.download_key,
                 doi=args.doi, license_id=args.license_id, query=query,
-                record_count=args.record_count, max_bytes=args.max_bytes,
+                record_count=args.record_count, max_bytes=args.max_bytes, signing_key=args.signing_key,
             )
         except (GbifAcquisitionError, OSError, json.JSONDecodeError, ValueError) as exc:
             print(json.dumps({"ok": False, "error": str(exc)}, separators=(",", ":")))
@@ -139,6 +141,7 @@ def main(argv: list[str] | None = None) -> int:
                     args.source, args.output, dataset_id=args.dataset_id,
                     version=args.version, signer_key_id=args.signer_key_id,
                     signing_key=args.signing_key, acquisition_record=acquisition, scan_report=args.scan_report,
+                    acquisition_public_key=args.acquisition_public_key,
                 )
         except (DatasetCertificationError, OSError, UnicodeDecodeError, json.JSONDecodeError, ValueError) as exc:
             print(json.dumps({"ok": False, "error": str(exc)}, separators=(",", ":")))
