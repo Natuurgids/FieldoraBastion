@@ -11,7 +11,7 @@ from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 
 from fieldora_bastion.dataset_certification import (
     DatasetCertificationError,
-    certify_gbif_dataset,
+    certify_gbif_dataset as _certify_gbif_dataset,
     certify_map_dataset,
 )
 from fieldora_bastion.scanner import payload_tree_digest
@@ -29,6 +29,22 @@ def _signing_key(tmp_path: Path) -> tuple[Path, str]:
         serialization.Encoding.DER, serialization.PublicFormat.SubjectPublicKeyInfo
     )
     return path, hashlib.sha256(public_der).hexdigest()[:32]
+
+
+def certify_gbif_dataset(source: Path, output: Path, **kwargs):
+    record = kwargs["acquisition_record"]
+    acquisition_key = Ed25519PrivateKey.generate()
+    payload = json.dumps(record, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    public = acquisition_key.public_key()
+    public_der = public.public_bytes(serialization.Encoding.DER, serialization.PublicFormat.SubjectPublicKeyInfo)
+    record["acquisition_attestation"] = {
+        "algorithm": "ed25519",
+        "key_id": hashlib.sha256(public_der).hexdigest()[:32],
+        "signature": acquisition_key.sign(payload).hex(),
+    }
+    public_path = output.parent / (output.name + "-acquisition-public.pem")
+    public_path.write_bytes(public.public_bytes(serialization.Encoding.PEM, serialization.PublicFormat.SubjectPublicKeyInfo))
+    return _certify_gbif_dataset(source, output, acquisition_public_key=public_path, **kwargs)
 
 
 def _scan(path: Path, source: Path) -> Path:
@@ -227,3 +243,21 @@ def test_gbif_certification_rejects_scan_file_count_mismatch(tmp_path: Path) -> 
     signing_key, key_id = _signing_key(tmp_path)
     with pytest.raises(DatasetCertificationError, match="changed after malware scan"):
         certify_gbif_dataset(source, tmp_path / "out", dataset_id="count", version="1", signer_key_id=key_id, signing_key=signing_key, acquisition_record=_gbif_record(source), scan_report=report)
+
+
+def test_gbif_certification_rejects_tampered_signed_acquisition_metadata(tmp_path: Path) -> None:
+    source = tmp_path / "signed.zip"
+    with ZipFile(source, "w") as archive:
+        archive.writestr("occurrence.csv", "occurrenceID,scientificName\n1,Parus major\n")
+    record = _gbif_record(source)
+    acquisition_key = Ed25519PrivateKey.generate()
+    public = acquisition_key.public_key()
+    public_der = public.public_bytes(serialization.Encoding.DER, serialization.PublicFormat.SubjectPublicKeyInfo)
+    payload = json.dumps(record, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    record["acquisition_attestation"] = {"algorithm": "ed25519", "key_id": hashlib.sha256(public_der).hexdigest()[:32], "signature": acquisition_key.sign(payload).hex()}
+    record["license_id"] = "tampered-license"
+    public_path = tmp_path / "acquisition-public.pem"
+    public_path.write_bytes(public.public_bytes(serialization.Encoding.PEM, serialization.PublicFormat.SubjectPublicKeyInfo))
+    signing_key, key_id = _signing_key(tmp_path)
+    with pytest.raises(DatasetCertificationError, match="signature is invalid"):
+        _certify_gbif_dataset(source, tmp_path / "out", dataset_id="signed", version="1", signer_key_id=key_id, signing_key=signing_key, acquisition_record=record, scan_report=_scan(tmp_path, source), acquisition_public_key=public_path)
