@@ -99,7 +99,7 @@ def certify_gbif_dataset(
     signing_key: Path,
     acquisition_record: dict[str, object],
     scan_report: Path,
-    acquisition_public_key: Path | None = None,
+    acquisition_public_key: Path,
 ) -> tuple[Path, Path]:
     scan = _clean_scan(scan_report, source)
     acquisition = validate_gbif_acquisition(acquisition_record)
