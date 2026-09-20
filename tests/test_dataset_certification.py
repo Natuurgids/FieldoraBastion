@@ -3,7 +3,7 @@ from __future__ import annotations
 import hashlib
 import json
 from pathlib import Path
-from zipfile import ZIP_DEFLATED, ZipFile
+from zipfile import ZIP_DEFLATED, ZipFile, ZipInfo
 
 import pytest
 from cryptography.hazmat.primitives import serialization
@@ -172,3 +172,58 @@ def test_gbif_certification_rejects_invalid_zip(tmp_path: Path) -> None:
             signer_key_id=key_id, signing_key=signing_key,
             acquisition_record=_gbif_record(source), scan_report=_scan(tmp_path, source),
         )
+
+
+def test_gbif_certification_rejects_duplicate_normalized_member(tmp_path: Path) -> None:
+    source = tmp_path / "duplicate.zip"
+    with ZipFile(source, "w") as archive:
+        archive.writestr("occurrence.csv", "occurrenceID,scientificName\n1,Parus major\n")
+        archive.writestr("occurrence.csv", "occurrenceID,scientificName\n2,Cyanistes caeruleus\n")
+    signing_key, key_id = _signing_key(tmp_path)
+    with pytest.raises(DatasetCertificationError, match="unsafe path"):
+        certify_gbif_dataset(source, tmp_path / "out", dataset_id="duplicate", version="1", signer_key_id=key_id, signing_key=signing_key, acquisition_record=_gbif_record(source), scan_report=_scan(tmp_path, source))
+
+
+def test_gbif_certification_rejects_symlink_member(tmp_path: Path) -> None:
+    source = tmp_path / "symlink.zip"
+    with ZipFile(source, "w") as archive:
+        info = ZipInfo("occurrence.csv")
+        info.create_system = 3
+        info.external_attr = 0o120777 << 16
+        archive.writestr(info, "target.csv")
+    signing_key, key_id = _signing_key(tmp_path)
+    with pytest.raises(DatasetCertificationError, match="special file"):
+        certify_gbif_dataset(source, tmp_path / "out", dataset_id="symlink", version="1", signer_key_id=key_id, signing_key=signing_key, acquisition_record=_gbif_record(source), scan_report=_scan(tmp_path, source))
+
+
+def test_gbif_certification_rejects_compression_ratio_bomb(tmp_path: Path) -> None:
+    source = tmp_path / "bomb.zip"
+    with ZipFile(source, "w", compression=ZIP_DEFLATED) as archive:
+        archive.writestr("occurrence.csv", b"A" * (2 * 1024 * 1024))
+    signing_key, key_id = _signing_key(tmp_path)
+    with pytest.raises(DatasetCertificationError, match="compression ratio"):
+        certify_gbif_dataset(source, tmp_path / "out", dataset_id="bomb", version="1", signer_key_id=key_id, signing_key=signing_key, acquisition_record=_gbif_record(source), scan_report=_scan(tmp_path, source))
+
+
+def test_gbif_certification_rejects_acquisition_size_mismatch(tmp_path: Path) -> None:
+    source = tmp_path / "size.zip"
+    with ZipFile(source, "w") as archive:
+        archive.writestr("occurrence.csv", "occurrenceID,scientificName\n1,Parus major\n")
+    record = _gbif_record(source)
+    record["archive_size"] = int(record["archive_size"]) + 1
+    signing_key, key_id = _signing_key(tmp_path)
+    with pytest.raises(DatasetCertificationError, match="size does not match"):
+        certify_gbif_dataset(source, tmp_path / "out", dataset_id="size", version="1", signer_key_id=key_id, signing_key=signing_key, acquisition_record=record, scan_report=_scan(tmp_path, source))
+
+
+def test_gbif_certification_rejects_scan_file_count_mismatch(tmp_path: Path) -> None:
+    source = tmp_path / "count.zip"
+    with ZipFile(source, "w") as archive:
+        archive.writestr("occurrence.csv", "occurrenceID,scientificName\n1,Parus major\n")
+    report = _scan(tmp_path, source)
+    data = json.loads(report.read_text())
+    data["file_count"] += 1
+    report.write_text(json.dumps(data), encoding="utf-8")
+    signing_key, key_id = _signing_key(tmp_path)
+    with pytest.raises(DatasetCertificationError, match="changed after malware scan"):
+        certify_gbif_dataset(source, tmp_path / "out", dataset_id="count", version="1", signer_key_id=key_id, signing_key=signing_key, acquisition_record=_gbif_record(source), scan_report=report)
