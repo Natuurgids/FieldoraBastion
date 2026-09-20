@@ -1,9 +1,12 @@
 from __future__ import annotations
 
 import hashlib
+import json
 from pathlib import Path
 
 import pytest
+from cryptography.hazmat.primitives import serialization
+from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 
 from fieldora_bastion.gbif_acquisition import GbifAcquisitionError, acquire_gbif_archive
 
@@ -38,6 +41,17 @@ class _Opener:
         return self.response
 
 
+def _signing_key(tmp_path: Path) -> Path:
+    key = Ed25519PrivateKey.generate()
+    path = tmp_path / "acquisition-key.pem"
+    path.write_bytes(key.private_bytes(
+        serialization.Encoding.PEM,
+        serialization.PrivateFormat.PKCS8,
+        serialization.NoEncryption(),
+    ))
+    return path
+
+
 def test_controlled_acquisition_binds_actual_downloaded_bytes(tmp_path: Path) -> None:
     payload = b"real-gbif-archive"
     archive, provenance = acquire_gbif_archive(
@@ -49,12 +63,14 @@ def test_controlled_acquisition_binds_actual_downloaded_bytes(tmp_path: Path) ->
         query={"country": "NL"},
         record_count=7,
         opener=_Opener(_Response(payload, "https://api.gbif.org/v1/occurrence/download/request/key-1")),
+        signing_key=_signing_key(tmp_path),
     )
     assert archive.read_bytes() == payload
-    import json
     record = json.loads(provenance.read_text())
     assert record["archive_sha256"] == hashlib.sha256(payload).hexdigest()
     assert record["archive_size"] == len(payload)
+    assert record["acquisition_attestation"]["algorithm"] == "ed25519"
+    assert len(record["acquisition_attestation"]["signature"]) == 128
 
 
 def test_controlled_acquisition_rejects_unapproved_final_url(tmp_path: Path) -> None:
