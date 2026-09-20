@@ -106,7 +106,7 @@ def certify_gbif_dataset(
     attestation = acquisition_record.get("acquisition_attestation")
     if not isinstance(attestation, dict) or attestation.get("algorithm") != "ed25519":
         raise DatasetCertificationError("signed Bastion GBIF acquisition evidence is required")
-        try:
+    try:
         public_key = serialization.load_pem_public_key(acquisition_public_key.read_bytes())
     except (OSError, ValueError, TypeError) as exc:
         raise DatasetCertificationError("GBIF acquisition public key is unreadable") from exc
