@@ -7,6 +7,7 @@ import json
 import os
 import re
 import tempfile
+import hmac
 from datetime import UTC, datetime
 from pathlib import Path
 from urllib.error import HTTPError, URLError
@@ -14,6 +15,8 @@ from urllib.parse import urljoin, urlparse
 from urllib.request import HTTPRedirectHandler, Request, build_opener
 
 from fieldora_bastion.gbif_provenance import GbifProvenanceError, validate_gbif_acquisition
+from cryptography.hazmat.primitives import serialization
+from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 
 _GBIF_HOSTS = {"gbif.org", "www.gbif.org", "api.gbif.org"}
 _MAX_ARCHIVE_BYTES = 64 * 1024 * 1024 * 1024
@@ -59,6 +62,7 @@ def acquire_gbif_archive(
     record_count: int,
     max_bytes: int = _MAX_ARCHIVE_BYTES,
     opener=None,
+    signing_key: Path | None = None,
 ) -> tuple[Path, Path]:
     """Download into quarantine and generate provenance from bytes Bastion observed."""
     if not _approved_url(source_url):
@@ -121,8 +125,25 @@ def acquire_gbif_archive(
             acquisition = validate_gbif_acquisition(record)
         except GbifProvenanceError as exc:
             raise GbifAcquisitionError(str(exc)) from exc
+        provenance_record = acquisition.as_provenance()
+        if signing_key is not None:
+            try:
+                private_key = serialization.load_pem_private_key(signing_key.read_bytes(), password=None)
+            except (OSError, ValueError, TypeError) as exc:
+                raise GbifAcquisitionError("GBIF acquisition signing key is unreadable") from exc
+            if not isinstance(private_key, Ed25519PrivateKey):
+                raise GbifAcquisitionError("GBIF acquisition signing key must be Ed25519")
+            signed_payload = json.dumps(provenance_record, sort_keys=True, separators=(",", ":")).encode("utf-8")
+            public_der = private_key.public_key().public_bytes(
+                serialization.Encoding.DER, serialization.PublicFormat.SubjectPublicKeyInfo
+            )
+            provenance_record["acquisition_attestation"] = {
+                "algorithm": "ed25519",
+                "key_id": hashlib.sha256(public_der).hexdigest()[:32],
+                "signature": private_key.sign(signed_payload).hex(),
+            }
         provenance_bytes = (
-            json.dumps(acquisition.as_provenance(), sort_keys=True, separators=(",", ":")) + "\n"
+            json.dumps(provenance_record, sort_keys=True, separators=(",", ":")) + "\n"
         ).encode("utf-8")
         provenance_descriptor, provenance_temporary_name = tempfile.mkstemp(
             prefix=".gbif-provenance-", suffix=".part", dir=quarantine_root
