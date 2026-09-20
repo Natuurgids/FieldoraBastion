@@ -9,6 +9,9 @@ import stat
 import tempfile
 from pathlib import Path, PurePosixPath
 from zipfile import BadZipFile, ZipFile
+from cryptography.exceptions import InvalidSignature
+from cryptography.hazmat.primitives import serialization
+from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey
 
 from fieldora_bastion.certified_artifact_transfer import build_certified_artifact_transfer
 from fieldora_bastion.dataset_validation import (
@@ -96,9 +99,31 @@ def certify_gbif_dataset(
     signing_key: Path,
     acquisition_record: dict[str, object],
     scan_report: Path,
+    acquisition_public_key: Path | None = None,
 ) -> tuple[Path, Path]:
     scan = _clean_scan(scan_report, source)
     acquisition = validate_gbif_acquisition(acquisition_record)
+    if acquisition_public_key is not None:
+        attestation = acquisition_record.get("acquisition_attestation")
+        if not isinstance(attestation, dict) or attestation.get("algorithm") != "ed25519":
+            raise DatasetCertificationError("signed Bastion GBIF acquisition evidence is required")
+        try:
+            public_key = serialization.load_pem_public_key(acquisition_public_key.read_bytes())
+        except (OSError, ValueError, TypeError) as exc:
+            raise DatasetCertificationError("GBIF acquisition public key is unreadable") from exc
+        if not isinstance(public_key, Ed25519PublicKey):
+            raise DatasetCertificationError("GBIF acquisition public key must be Ed25519")
+        public_der = public_key.public_bytes(serialization.Encoding.DER, serialization.PublicFormat.SubjectPublicKeyInfo)
+        key_id = hashlib.sha256(public_der).hexdigest()[:32]
+        if str(attestation.get("key_id") or "") != key_id:
+            raise DatasetCertificationError("GBIF acquisition attestation key does not match trusted key")
+        unsigned = {key: value for key, value in acquisition_record.items() if key != "acquisition_attestation"}
+        payload = json.dumps(unsigned, sort_keys=True, separators=(",", ":")).encode("utf-8")
+        try:
+            signature = bytes.fromhex(str(attestation.get("signature") or ""))
+            public_key.verify(signature, payload)
+        except (ValueError, InvalidSignature) as exc:
+            raise DatasetCertificationError("GBIF acquisition attestation signature is invalid") from exc
     archive_sha256 = str(acquisition_record.get("archive_sha256") or "").lower()
     archive_size = acquisition.archive_size
     if source.is_symlink() or not source.is_file():
