@@ -7,7 +7,6 @@ import json
 import os
 import re
 import tempfile
-import hmac
 from datetime import UTC, datetime
 from pathlib import Path
 from urllib.error import HTTPError, URLError
