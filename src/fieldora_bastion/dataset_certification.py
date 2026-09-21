@@ -112,17 +112,27 @@ def certify_gbif_dataset(
         raise DatasetCertificationError("GBIF acquisition public key is unreadable") from exc
     if not isinstance(public_key, Ed25519PublicKey):
         raise DatasetCertificationError("GBIF acquisition public key must be Ed25519")
-    public_der = public_key.public_bytes(serialization.Encoding.DER, serialization.PublicFormat.SubjectPublicKeyInfo)
+    public_der = public_key.public_bytes(
+        serialization.Encoding.DER, serialization.PublicFormat.SubjectPublicKeyInfo
+    )
     key_id = hashlib.sha256(public_der).hexdigest()[:32]
     if str(attestation.get("key_id") or "") != key_id:
-        raise DatasetCertificationError("GBIF acquisition attestation key does not match trusted key")
-    unsigned = {key: value for key, value in acquisition_record.items() if key != "acquisition_attestation"}
+        raise DatasetCertificationError(
+            "GBIF acquisition attestation key does not match trusted key"
+        )
+    unsigned = {
+        key: value
+        for key, value in acquisition_record.items()
+        if key != "acquisition_attestation"
+    }
     payload = json.dumps(unsigned, sort_keys=True, separators=(",", ":")).encode("utf-8")
     try:
         signature = bytes.fromhex(str(attestation.get("signature") or ""))
         public_key.verify(signature, payload)
     except (ValueError, InvalidSignature) as exc:
-        raise DatasetCertificationError("GBIF acquisition attestation signature is invalid") from exc
+        raise DatasetCertificationError(
+            "GBIF acquisition attestation signature is invalid"
+        ) from exc
     archive_sha256 = str(acquisition_record.get("archive_sha256") or "").lower()
     archive_size = acquisition.archive_size
     if source.is_symlink() or not source.is_file():
@@ -168,13 +178,17 @@ def certify_gbif_dataset(
                         raise DatasetCertificationError("GBIF archive member exceeds size limit")
                     total_uncompressed += info.file_size
                     if total_uncompressed > _MAX_TOTAL_UNCOMPRESSED_BYTES:
-                        raise DatasetCertificationError("GBIF archive exceeds uncompressed size limit")
+                        raise DatasetCertificationError(
+                            "GBIF archive exceeds uncompressed size limit"
+                        )
                     if (
                         info.file_size > 1024 * 1024
                         and info.compress_size > 0
                         and info.file_size / info.compress_size > _MAX_COMPRESSION_RATIO
                     ):
-                        raise DatasetCertificationError("GBIF archive member compression ratio is unsafe")
+                        raise DatasetCertificationError(
+                            "GBIF archive member compression ratio is unsafe"
+                        )
                     if info.is_dir():
                         continue
                     target = validation_root.joinpath(*parts)
@@ -184,10 +198,14 @@ def certify_gbif_dataset(
                         for block in iter(lambda: stream.read(1024 * 1024), b""):
                             written += len(block)
                             if written > info.file_size or written > _MAX_MEMBER_BYTES:
-                                raise DatasetCertificationError("GBIF archive member exceeded declared size")
+                                raise DatasetCertificationError(
+                                    "GBIF archive member exceeded declared size"
+                                )
                             output_stream.write(block)
                     if written != info.file_size:
-                        raise DatasetCertificationError("GBIF archive member size did not match metadata")
+                        raise DatasetCertificationError(
+                            "GBIF archive member size did not match metadata"
+                        )
             validation = validate_biodiversity_dataset(
                 validation_root,
                 source_id="gbif",
