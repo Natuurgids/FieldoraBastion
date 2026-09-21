@@ -31,19 +31,19 @@ def _signing_key(tmp_path: Path) -> tuple[Path, str]:
     return path, hashlib.sha256(public_der).hexdigest()[:32]
 
 
-def certify_gbif_dataset(source: Path, output: Path, **kwargs):
+def certify_gbif_dataset(source: Path, output: Path, **kwargs):  # noqa: ANN003
     record = kwargs["acquisition_record"]
     acquisition_key = Ed25519PrivateKey.generate()
     payload = json.dumps(record, sort_keys=True, separators=(",", ":")).encode("utf-8")
     public = acquisition_key.public_key()
-    public_der = public.public_bytes(serialization.Encoding.DER, serialization.PublicFormat.SubjectPublicKeyInfo)
+    public_der = public.public_bytes(\n        serialization.Encoding.DER, serialization.PublicFormat.SubjectPublicKeyInfo\n    )
     record["acquisition_attestation"] = {
         "algorithm": "ed25519",
         "key_id": hashlib.sha256(public_der).hexdigest()[:32],
         "signature": acquisition_key.sign(payload).hex(),
     }
     public_path = output.parent / (output.name + "-acquisition-public.pem")
-    public_path.write_bytes(public.public_bytes(serialization.Encoding.PEM, serialization.PublicFormat.SubjectPublicKeyInfo))
+    public_path.write_bytes(public.public_bytes(\n        serialization.Encoding.PEM, serialization.PublicFormat.SubjectPublicKeyInfo\n    ))
     return _certify_gbif_dataset(source, output, acquisition_public_key=public_path, **kwargs)
 
 
