@@ -62,7 +62,9 @@ def test_controlled_acquisition_binds_actual_downloaded_bytes(tmp_path: Path) ->
         license_id="CC-BY-4.0",
         query={"country": "NL"},
         record_count=7,
-        opener=_Opener(_Response(payload, "https://api.gbif.org/v1/occurrence/download/request/key-1")),
+        opener=_Opener(
+            _Response(payload, "https://api.gbif.org/v1/occurrence/download/request/key-1")
+        ),
         signing_key=_signing_key(tmp_path),
     )
     assert archive.read_bytes() == payload
@@ -100,7 +102,9 @@ def test_controlled_acquisition_enforces_stream_size_limit(tmp_path: Path) -> No
             query={"country": "NL"},
             record_count=1,
             max_bytes=3,
-            opener=_Opener(_Response(b"1234", "https://api.gbif.org/v1/occurrence/download/request/key-3")),
+            opener=_Opener(
+                _Response(b"1234", "https://api.gbif.org/v1/occurrence/download/request/key-3")
+            ),
             signing_key=_signing_key(tmp_path),
         )
     assert list(tmp_path.iterdir()) == []
