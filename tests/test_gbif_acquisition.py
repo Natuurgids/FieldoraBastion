@@ -84,6 +84,7 @@ def test_controlled_acquisition_rejects_unapproved_final_url(tmp_path: Path) -> 
             query={"country": "NL"},
             record_count=1,
             opener=_Opener(_Response(b"payload", "https://evil.invalid/archive.zip")),
+            signing_key=_signing_key(tmp_path),
         )
     assert list(tmp_path.iterdir()) == []
 
@@ -100,6 +101,7 @@ def test_controlled_acquisition_enforces_stream_size_limit(tmp_path: Path) -> No
             record_count=1,
             max_bytes=3,
             opener=_Opener(_Response(b"1234", "https://api.gbif.org/v1/occurrence/download/request/key-3")),
+            signing_key=_signing_key(tmp_path),
         )
     assert list(tmp_path.iterdir()) == []
 
@@ -122,6 +124,7 @@ def test_controlled_acquisition_rejects_unsafe_download_key_before_network(
             query={"country": "NL"},
             record_count=1,
             opener=_NeverOpen(),
+            signing_key=_signing_key(tmp_path),
         )
     assert list(tmp_path.iterdir()) == []
 
@@ -141,5 +144,6 @@ def test_controlled_acquisition_rejects_invalid_metadata_before_network(tmp_path
             query={"country": "NL"},
             record_count=1,
             opener=_NeverOpen(),
+            signing_key=_signing_key(tmp_path),
         )
     assert list(tmp_path.iterdir()) == []
