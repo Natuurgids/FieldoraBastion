@@ -17,7 +17,7 @@ from fieldora_bastion.gbif_provenance import GbifProvenanceError, validate_gbif_
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 
-_GBIF_HOSTS = {"gbif.org", "www.gbif.org", "api.gbif.org"}
+_GBIF_HOSTS = {"gbif.org", "www.gbif.org", "api.gbif.org"}\n_GBIF_DOWNLOAD_PATH = re.compile(r"^/(?:v1/)?occurrence/download/(?:request/)?[^/]+/?$")
 _MAX_ARCHIVE_BYTES = 64 * 1024 * 1024 * 1024
 _DOWNLOAD_KEY = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$")
 
