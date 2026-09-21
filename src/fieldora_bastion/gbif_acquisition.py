@@ -61,7 +61,7 @@ def acquire_gbif_archive(
     record_count: int,
     max_bytes: int = _MAX_ARCHIVE_BYTES,
     opener=None,
-    signing_key: Path | None = None,
+    signing_key: Path,
 ) -> tuple[Path, Path]:
     """Download into quarantine and generate provenance from bytes Bastion observed."""
     if not _approved_url(source_url):
