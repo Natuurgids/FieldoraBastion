@@ -17,7 +17,8 @@ from fieldora_bastion.gbif_provenance import GbifProvenanceError, validate_gbif_
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 
-_GBIF_HOSTS = {"gbif.org", "www.gbif.org", "api.gbif.org"}\n_GBIF_DOWNLOAD_PATH = re.compile(r"^/(?:v1/)?occurrence/download/(?:request/)?[^/]+/?$")
+_GBIF_HOSTS = {"gbif.org", "www.gbif.org", "api.gbif.org"}
+_GBIF_DOWNLOAD_PATH = re.compile(r"^/(?:v1/)?occurrence/download/(?:request/)?[^/]+/?$")
 _MAX_ARCHIVE_BYTES = 64 * 1024 * 1024 * 1024
 _DOWNLOAD_KEY = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$")
 
@@ -142,7 +143,8 @@ def acquire_gbif_archive(
                 "signature": private_key.sign(signed_payload).hex(),
             }
         provenance_bytes = (
-            json.dumps(provenance_record, sort_keys=True, separators=(",", ":")) + "\n"
+            json.dumps(provenance_record, sort_keys=True, separators=(",", ":")) + "
+"
         ).encode("utf-8")
         provenance_descriptor, provenance_temporary_name = tempfile.mkstemp(
             prefix=".gbif-provenance-", suffix=".part", dir=quarantine_root
