@@ -82,7 +82,9 @@ def acquire_gbif_archive(
     if max_bytes <= 0:
         raise GbifAcquisitionError("GBIF archive size limit must be positive")
     quarantine_root.mkdir(parents=True, exist_ok=True)
-    descriptor, temporary_name = tempfile.mkstemp(prefix=".gbif-", suffix=".part", dir=quarantine_root)
+    descriptor, temporary_name = tempfile.mkstemp(
+        prefix=".gbif-", suffix=".part", dir=quarantine_root
+    )
     os.close(descriptor)
     temporary = Path(temporary_name)
     final = quarantine_root / f"{download_key}.zip"
@@ -94,7 +96,9 @@ def acquire_gbif_archive(
     size = 0
     client = opener or build_opener(_GbifRedirectHandler())
     try:
-        request = Request(source_url, headers={"User-Agent": "FieldoraBastion/controlled-acquisition"})
+        request = Request(
+            source_url, headers={"User-Agent": "FieldoraBastion/controlled-acquisition"}
+        )
         with client.open(request, timeout=60) as response, temporary.open("wb") as target:
             final_url = response.geturl()
             if not _approved_url(final_url):
@@ -128,12 +132,16 @@ def acquire_gbif_archive(
         provenance_record = acquisition.as_provenance()
         if signing_key is not None:
             try:
-                private_key = serialization.load_pem_private_key(signing_key.read_bytes(), password=None)
+                private_key = serialization.load_pem_private_key(
+                signing_key.read_bytes(), password=None
+            )
             except (OSError, ValueError, TypeError) as exc:
                 raise GbifAcquisitionError("GBIF acquisition signing key is unreadable") from exc
             if not isinstance(private_key, Ed25519PrivateKey):
                 raise GbifAcquisitionError("GBIF acquisition signing key must be Ed25519")
-            signed_payload = json.dumps(provenance_record, sort_keys=True, separators=(",", ":")).encode("utf-8")
+            signed_payload = json.dumps(
+            provenance_record, sort_keys=True, separators=(",", ":")
+        ).encode("utf-8")
             public_der = private_key.public_key().public_bytes(
                 serialization.Encoding.DER, serialization.PublicFormat.SubjectPublicKeyInfo
             )
