@@ -31,7 +31,7 @@ def _signing_key(tmp_path: Path) -> tuple[Path, str]:
     return path, hashlib.sha256(public_der).hexdigest()[:32]
 
 
-def certify_gbif_dataset(source: Path, output: Path, **kwargs):  # noqa: ANN003
+def certify_gbif_dataset(source: Path, output: Path, **kwargs):
     record = kwargs["acquisition_record"]
     acquisition_key = Ed25519PrivateKey.generate()
     payload = json.dumps(record, sort_keys=True, separators=(",", ":")).encode("utf-8")
