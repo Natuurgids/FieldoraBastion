@@ -147,3 +147,33 @@ def test_controlled_acquisition_rejects_invalid_metadata_before_network(tmp_path
             signing_key=_signing_key(tmp_path),
         )
     assert list(tmp_path.iterdir()) == []
+
+
+@pytest.mark.parametrize(
+    "source_url",
+    [
+        "https://api.gbif.org/v1/species/search?q=bird",
+        "https://api.gbif.org/v1/occurrence/download/request/key-1?token=secret",
+        "https://www.gbif.org/dataset/example",
+    ],
+)
+def test_controlled_acquisition_rejects_non_download_endpoints_before_network(
+    tmp_path: Path, source_url: str
+) -> None:
+    class _NeverOpen:
+        def open(self, *_args, **_kwargs):
+            raise AssertionError("network must not be reached")
+
+    with pytest.raises(GbifAcquisitionError, match="source URL"):
+        acquire_gbif_archive(
+            source_url,
+            tmp_path,
+            download_key="key-safe",
+            doi="10.15468/dl.example",
+            license_id="CC0-1.0",
+            query={"country": "NL"},
+            record_count=1,
+            opener=_NeverOpen(),
+            signing_key=_signing_key(tmp_path),
+        )
+    assert list(tmp_path.iterdir()) == [tmp_path / "acquisition-key.pem"]
