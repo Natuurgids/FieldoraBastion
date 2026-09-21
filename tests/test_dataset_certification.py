@@ -289,6 +289,27 @@ def test_gbif_certification_rejects_scan_file_count_mismatch(tmp_path: Path) -> 
         )
 
 
+def test_gbif_certification_requires_signed_acquisition_evidence(tmp_path: Path) -> None:
+    source = tmp_path / "unsigned.zip"
+    with ZipFile(source, "w") as archive:
+        archive.writestr("occurrence.csv", "occurrenceID,scientificName\\n1,Parus major\\n")
+    acquisition_key = Ed25519PrivateKey.generate()
+    public_path = tmp_path / "acquisition-public.pem"
+    public_path.write_bytes(
+        acquisition_key.public_key().public_bytes(
+            serialization.Encoding.PEM, serialization.PublicFormat.SubjectPublicKeyInfo
+        )
+    )
+    signing_key, key_id = _signing_key(tmp_path)
+    with pytest.raises(DatasetCertificationError, match="signed Bastion"):
+        _certify_gbif_dataset(
+            source, tmp_path / "out", dataset_id="unsigned", version="1",
+            signer_key_id=key_id, signing_key=signing_key,
+            acquisition_record=_gbif_record(source), scan_report=_scan(tmp_path, source),
+            acquisition_public_key=public_path,
+        )
+
+
 def test_gbif_certification_rejects_tampered_signed_acquisition_metadata(tmp_path: Path) -> None:
     source = tmp_path / "signed.zip"
     with ZipFile(source, "w") as archive:
