@@ -119,7 +119,8 @@ def test_dataset_certification_rejects_unclean_scan(tmp_path: Path) -> None:
     with pytest.raises(DatasetCertificationError, match="clean"):
         certify_map_dataset(
             source, tmp_path / "out", dataset_id="base", version="1",
-            signer_key_id=_signing_key(tmp_path)[1], signing_key=_signing_key(tmp_path)[0], source_id="maps", license_id="license",
+            signer_key_id=_signing_key(tmp_path)[1], signing_key=_signing_key(tmp_path)[0],
+            source_id="maps", license_id="license",
             scan_report=report,
         )
 
@@ -130,7 +131,10 @@ def test_dataset_certification_rejects_payload_changed_after_scan(tmp_path: Path
     payload = source / "map.geojson"
     payload.write_text('{"type":"FeatureCollection","features":[]}', encoding="utf-8")
     report = _scan(tmp_path, source)
-    payload.write_text('{"type":"FeatureCollection","features":[{"type":"Feature","properties":{},"geometry":null}]}', encoding="utf-8")
+    payload.write_text(
+        '{"type":"FeatureCollection","features":[{"type":"Feature","properties":{},'
+        '"geometry":null}]}', encoding="utf-8"
+    )
     with pytest.raises(DatasetCertificationError, match="changed after malware scan"):
         signing_key, key_id = _signing_key(tmp_path)
         certify_map_dataset(
@@ -155,7 +159,9 @@ def _gbif_record(source: Path) -> dict[str, object]:
     }
 
 
-@pytest.mark.parametrize("member", ["../escape.csv", "/absolute.csv", "C:/escape.csv", r"..\\escape.csv"])
+@pytest.mark.parametrize(
+    "member", ["../escape.csv", "/absolute.csv", "C:/escape.csv", r"..\\escape.csv"]
+)
 def test_gbif_certification_rejects_unsafe_archive_paths(tmp_path: Path, member: str) -> None:
     source = tmp_path / "unsafe.zip"
     with ZipFile(source, "w", compression=ZIP_DEFLATED) as archive:
@@ -211,7 +217,11 @@ def test_gbif_certification_rejects_duplicate_normalized_member(tmp_path: Path) 
 ")
     signing_key, key_id = _signing_key(tmp_path)
     with pytest.raises(DatasetCertificationError, match="unsafe path"):
-        certify_gbif_dataset(source, tmp_path / "out", dataset_id="duplicate", version="1", signer_key_id=key_id, signing_key=signing_key, acquisition_record=_gbif_record(source), scan_report=_scan(tmp_path, source))
+        certify_gbif_dataset(
+            source, tmp_path / "out", dataset_id="duplicate", version="1",
+            signer_key_id=key_id, signing_key=signing_key,
+            acquisition_record=_gbif_record(source), scan_report=_scan(tmp_path, source),
+        )
 
 
 def test_gbif_certification_rejects_symlink_member(tmp_path: Path) -> None:
@@ -223,7 +233,11 @@ def test_gbif_certification_rejects_symlink_member(tmp_path: Path) -> None:
         archive.writestr(info, "target.csv")
     signing_key, key_id = _signing_key(tmp_path)
     with pytest.raises(DatasetCertificationError, match="special file"):
-        certify_gbif_dataset(source, tmp_path / "out", dataset_id="symlink", version="1", signer_key_id=key_id, signing_key=signing_key, acquisition_record=_gbif_record(source), scan_report=_scan(tmp_path, source))
+        certify_gbif_dataset(
+            source, tmp_path / "out", dataset_id="symlink", version="1",
+            signer_key_id=key_id, signing_key=signing_key,
+            acquisition_record=_gbif_record(source), scan_report=_scan(tmp_path, source),
+        )
 
 
 def test_gbif_certification_rejects_compression_ratio_bomb(tmp_path: Path) -> None:
@@ -232,7 +246,11 @@ def test_gbif_certification_rejects_compression_ratio_bomb(tmp_path: Path) -> No
         archive.writestr("occurrence.csv", b"A" * (2 * 1024 * 1024))
     signing_key, key_id = _signing_key(tmp_path)
     with pytest.raises(DatasetCertificationError, match="compression ratio"):
-        certify_gbif_dataset(source, tmp_path / "out", dataset_id="bomb", version="1", signer_key_id=key_id, signing_key=signing_key, acquisition_record=_gbif_record(source), scan_report=_scan(tmp_path, source))
+        certify_gbif_dataset(
+            source, tmp_path / "out", dataset_id="bomb", version="1",
+            signer_key_id=key_id, signing_key=signing_key,
+            acquisition_record=_gbif_record(source), scan_report=_scan(tmp_path, source),
+        )
 
 
 def test_gbif_certification_rejects_acquisition_size_mismatch(tmp_path: Path) -> None:
@@ -245,7 +263,11 @@ def test_gbif_certification_rejects_acquisition_size_mismatch(tmp_path: Path) ->
     record["archive_size"] = int(record["archive_size"]) + 1
     signing_key, key_id = _signing_key(tmp_path)
     with pytest.raises(DatasetCertificationError, match="size does not match"):
-        certify_gbif_dataset(source, tmp_path / "out", dataset_id="size", version="1", signer_key_id=key_id, signing_key=signing_key, acquisition_record=record, scan_report=_scan(tmp_path, source))
+        certify_gbif_dataset(
+            source, tmp_path / "out", dataset_id="size", version="1",
+            signer_key_id=key_id, signing_key=signing_key, acquisition_record=record,
+            scan_report=_scan(tmp_path, source),
+        )
 
 
 def test_gbif_certification_rejects_scan_file_count_mismatch(tmp_path: Path) -> None:
@@ -260,7 +282,11 @@ def test_gbif_certification_rejects_scan_file_count_mismatch(tmp_path: Path) -> 
     report.write_text(json.dumps(data), encoding="utf-8")
     signing_key, key_id = _signing_key(tmp_path)
     with pytest.raises(DatasetCertificationError, match="changed after malware scan"):
-        certify_gbif_dataset(source, tmp_path / "out", dataset_id="count", version="1", signer_key_id=key_id, signing_key=signing_key, acquisition_record=_gbif_record(source), scan_report=report)
+        certify_gbif_dataset(
+            source, tmp_path / "out", dataset_id="count", version="1",
+            signer_key_id=key_id, signing_key=signing_key,
+            acquisition_record=_gbif_record(source), scan_report=report,
+        )
 
 
 def test_gbif_certification_rejects_tampered_signed_acquisition_metadata(tmp_path: Path) -> None:
@@ -272,12 +298,24 @@ def test_gbif_certification_rejects_tampered_signed_acquisition_metadata(tmp_pat
     record = _gbif_record(source)
     acquisition_key = Ed25519PrivateKey.generate()
     public = acquisition_key.public_key()
-    public_der = public.public_bytes(serialization.Encoding.DER, serialization.PublicFormat.SubjectPublicKeyInfo)
+    public_der = public.public_bytes(
+        serialization.Encoding.DER, serialization.PublicFormat.SubjectPublicKeyInfo
+    )
     payload = json.dumps(record, sort_keys=True, separators=(",", ":")).encode("utf-8")
-    record["acquisition_attestation"] = {"algorithm": "ed25519", "key_id": hashlib.sha256(public_der).hexdigest()[:32], "signature": acquisition_key.sign(payload).hex()}
+    record["acquisition_attestation"] = {
+        "algorithm": "ed25519",
+        "key_id": hashlib.sha256(public_der).hexdigest()[:32],
+        "signature": acquisition_key.sign(payload).hex(),
+    }
     record["license_id"] = "tampered-license"
     public_path = tmp_path / "acquisition-public.pem"
-    public_path.write_bytes(public.public_bytes(serialization.Encoding.PEM, serialization.PublicFormat.SubjectPublicKeyInfo))
+    public_path.write_bytes(public.public_bytes(
+        serialization.Encoding.PEM, serialization.PublicFormat.SubjectPublicKeyInfo
+    ))
     signing_key, key_id = _signing_key(tmp_path)
     with pytest.raises(DatasetCertificationError, match="signature is invalid"):
-        _certify_gbif_dataset(source, tmp_path / "out", dataset_id="signed", version="1", signer_key_id=key_id, signing_key=signing_key, acquisition_record=record, scan_report=_scan(tmp_path, source), acquisition_public_key=public_path)
+        _certify_gbif_dataset(
+            source, tmp_path / "out", dataset_id="signed", version="1",
+            signer_key_id=key_id, signing_key=signing_key, acquisition_record=record,
+            scan_report=_scan(tmp_path, source), acquisition_public_key=public_path,
+        )
