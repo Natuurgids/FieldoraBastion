@@ -1,6 +1,8 @@
 name: FieldoraBastion Wazuh security monitoring certification
 
 on:
+  push:
+    branches: [main]
   pull_request:
     paths:
       - "src/fieldora_bastion/security_monitoring.py"
