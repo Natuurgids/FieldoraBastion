@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import base64
 import hashlib
 import json
 import re
@@ -130,7 +131,9 @@ def certify_gbif_dataset(
     }
     payload = json.dumps(unsigned, sort_keys=True, separators=(",", ":")).encode("utf-8")
     try:
-        signature = bytes.fromhex(str(attestation.get("signature") or ""))
+        encoding = str(attestation.get("encoding") or "hex")
+        encoded = str(attestation.get("signature") or "")
+        signature = base64.b64decode(encoded, validate=True) if encoding == "base64" else bytes.fromhex(encoded)
         public_key.verify(signature, payload)
     except (ValueError, InvalidSignature) as exc:
         raise DatasetCertificationError(
