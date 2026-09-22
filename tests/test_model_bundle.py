@@ -10,6 +10,7 @@ from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 
 from fieldora_bastion.model_bundle import BundleBuildError, build_model_bundle
+from fieldora_bastion.signing import SigningError
 
 
 def _signing_key(path: Path) -> tuple[Path, Ed25519PrivateKey]:
@@ -247,3 +248,28 @@ def test_enforces_bundle_size_limit(tmp_path: Path) -> None:
             version="1",
             max_total_bytes=9,
         )
+
+
+def test_external_signer_failure_rolls_back_bundle(tmp_path: Path) -> None:
+    class _FailingSigner:
+        @property
+        def key_id(self) -> str:
+            return "a" * 32
+
+        def sign(self, _payload: bytes):
+            raise SigningError("external signer refused request")
+
+    source = tmp_path / "source"
+    source.mkdir()
+    (source / "model.gguf").write_bytes(b"model")
+    output = tmp_path / "out"
+
+    with pytest.raises(BundleBuildError, match="external signer refused request"):
+        build_model_bundle(
+            source,
+            output,
+            model_id="m",
+            version="1",
+            signer=_FailingSigner(),
+        )
+    assert not (output / "m-1").exists()
