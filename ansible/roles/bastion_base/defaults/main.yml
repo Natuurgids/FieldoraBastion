@@ -1,16 +1,16 @@
 ---
-fieldora_bastion_user: fieldora-bastion
-fieldora_bastion_group: fieldora-bastion
-fieldora_bastion_root: /var/lib/fieldora-bastion
-fieldora_bastion_quarantine: "{{ fieldora_bastion_root }}/quarantine"
-fieldora_bastion_export: "{{ fieldora_bastion_root }}/export"
-fieldora_bastion_secrets: /etc/fieldora-bastion/secrets
+bastion_base_user: fieldora-bastion
+bastion_base_group: fieldora-bastion
+bastion_base_root: /var/lib/fieldora-bastion
+bastion_base_quarantine: "{{ bastion_base_root }}/quarantine"
+bastion_base_export: "{{ bastion_base_root }}/export"
+bastion_base_secrets: /etc/fieldora-bastion/secrets
 
 # Secret material is never a role default. Configure only the external handler.
-bastion_secret_handler: vault
-bastion_secret_handler_endpoint: "unix:///run/fieldora-bastion/secret-handler.sock"
-bastion_keycloak_enabled: false
-bastion_keycloak_issuer: ""
-bastion_keycloak_audience: fieldora-bastion
-fieldora_bastion_runtime: /run/fieldora-bastion
-fieldora_bastion_secret_socket: "{{ fieldora_bastion_runtime }}/secret-handler.sock"
+bastion_base_secret_handler: vault
+bastion_base_secret_handler_endpoint: "unix:///run/fieldora-bastion/secret-handler.sock"
+bastion_base_keycloak_enabled: false
+bastion_base_keycloak_issuer: ""
+bastion_base_keycloak_audience: fieldora-bastion
+bastion_base_runtime: /run/fieldora-bastion
+bastion_base_secret_socket: "{{ bastion_base_runtime }}/secret-handler.sock"
