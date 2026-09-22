@@ -269,6 +269,9 @@ def build_model_bundle(
                 + "\n",
                 encoding="utf-8",
             )
+    except SigningError as exc:
+        shutil.rmtree(destination, ignore_errors=True)
+        raise BundleBuildError(str(exc)) from exc
     except BaseException:
         shutil.rmtree(destination, ignore_errors=True)
         raise
