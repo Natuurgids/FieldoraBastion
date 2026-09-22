@@ -179,7 +179,10 @@ def main(argv: list[str] | None = None) -> int:
         except TransferBuildError as exc:
             print(json.dumps({"ok": False, "error": str(exc)}, separators=(",", ":")))
             return 2
-        print(json.dumps({"ok": True, "artifact": str(artifact), "evidence": str(evidence)}, separators=(",", ":")))
+        print(json.dumps(
+            {"ok": True, "artifact": str(artifact), "evidence": str(evidence)},
+            separators=(",", ":"),
+        ))
         return 0
 
     try:
