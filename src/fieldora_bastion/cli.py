@@ -47,7 +47,7 @@ def _parser() -> argparse.ArgumentParser:
         type=Path,
         help=(
             "JSON clean-scan attestation produced by an approved malware scanner; "
-            "requires --signing-key so the attestation is bound to manifest.sig."
+            "requires a configured signer so the attestation is bound to manifest.sig."
         ),
     )
     maps = sub.add_parser("certify-map-dataset")
@@ -58,7 +58,7 @@ def _parser() -> argparse.ArgumentParser:
     maps.add_argument("--signer-key-id", required=True)
     maps.add_argument("--signing-key", type=Path)
     maps.add_argument("--signer-socket", type=Path)
-    maps.add_argument("--handler-key-id")
+    maps.add_argument("--external-signer-key-id")
     maps.add_argument("--source-id", required=True)
     maps.add_argument("--license-id", required=True)
     maps.add_argument("--scan-report", type=Path, required=True)
@@ -84,7 +84,7 @@ def _parser() -> argparse.ArgumentParser:
     gbif.add_argument("--signer-key-id", required=True)
     gbif.add_argument("--signing-key", type=Path)
     gbif.add_argument("--signer-socket", type=Path)
-    gbif.add_argument("--handler-key-id")
+    gbif.add_argument("--external-signer-key-id")
     gbif.add_argument("--acquisition-record", type=Path, required=True)
     gbif.add_argument("--scan-report", type=Path, required=True)
     gbif.add_argument("--acquisition-public-key", type=Path, required=True)
@@ -96,9 +96,11 @@ def _parser() -> argparse.ArgumentParser:
     return parser
 
 
-def _external_signer(args: argparse.Namespace) -> UnixSocketSigner | None:
+def _external_signer(
+    args: argparse.Namespace, *, key_id_attr: str = "signer_key_id"
+) -> UnixSocketSigner | None:
     socket_path = getattr(args, "signer_socket", None)
-    key_id = getattr(args, "handler_key_id", None) or getattr(args, "signer_key_id", None)
+    key_id = getattr(args, key_id_attr, None)
     if bool(socket_path) != bool(key_id):
         raise ValueError("--signer-socket and signer key ID must be provided together")
     if getattr(args, "signing_key", None) and socket_path:
@@ -150,7 +152,7 @@ def main(argv: list[str] | None = None) -> int:
                     args.source, args.output, dataset_id=args.dataset_id,
                     version=args.version, signer_key_id=args.signer_key_id,
                     signing_key=args.signing_key,
-                    signer=_external_signer(args),
+                    signer=_external_signer(args, key_id_attr="external_signer_key_id"),
                     source_id=args.source_id,
                     license_id=args.license_id,
                     scan_report=args.scan_report,
@@ -161,7 +163,7 @@ def main(argv: list[str] | None = None) -> int:
                     args.source, args.output, dataset_id=args.dataset_id,
                     version=args.version, signer_key_id=args.signer_key_id,
                     signing_key=args.signing_key,
-                    signer=_external_signer(args),
+                    signer=_external_signer(args, key_id_attr="external_signer_key_id"),
                     acquisition_record=acquisition,
                     scan_report=args.scan_report,
                     acquisition_public_key=args.acquisition_public_key,
@@ -208,7 +210,7 @@ def main(argv: list[str] | None = None) -> int:
             signer=_external_signer(args),
             scan_report=args.scan_report,
         )
-    except BundleBuildError as exc:
+    except (BundleBuildError, ValueError) as exc:
         print(json.dumps({"ok": False, "error": str(exc)}, separators=(",", ":")))
         return 2
     print(
