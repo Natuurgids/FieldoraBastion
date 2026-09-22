@@ -1,0 +1,49 @@
+---
+- name: Create Bastion service group
+  ansible.builtin.group:
+    name: "{{ fieldora_bastion_group }}"
+    system: true
+
+- name: Create Bastion service account
+  ansible.builtin.user:
+    name: "{{ fieldora_bastion_user }}"
+    group: "{{ fieldora_bastion_group }}"
+    system: true
+    create_home: false
+    shell: /usr/sbin/nologin
+
+- name: Create Bastion data boundaries
+  ansible.builtin.file:
+    path: "{{ item.path }}"
+    state: directory
+    owner: "{{ fieldora_bastion_user }}"
+    group: "{{ fieldora_bastion_group }}"
+    mode: "{{ item.mode }}"
+  loop:
+    - { path: "{{ fieldora_bastion_root }}", mode: "0750" }
+    - { path: "{{ fieldora_bastion_quarantine }}", mode: "0700" }
+    - { path: "{{ fieldora_bastion_export }}", mode: "0750" }
+
+- name: Create root-owned Bastion secret directory
+  ansible.builtin.file:
+    path: "{{ fieldora_bastion_secrets }}"
+    state: directory
+    owner: root
+    group: "{{ fieldora_bastion_group }}"
+    mode: "0750"
+
+- name: Install malware scanner
+  ansible.builtin.package:
+    name: clamav
+    state: present
+
+- name: Refuse deployment of signing secrets through Ansible variables
+  ansible.builtin.assert:
+    that:
+      - bastion_signing_private_key is not defined
+      - fieldora_database_password is not defined
+      - fieldora_pbac_secret is not defined
+      - fieldora_internal_ca_private_key is not defined
+    fail_msg: >-
+      Bastion deployment must not receive private signing material or Fieldora
+      trust-domain secrets through inventory or playbook variables.
