@@ -147,7 +147,7 @@ def acquire_gbif_archive(
         provenance_record["acquisition_attestation"] = {
             "algorithm": "ed25519",
             "key_id": signed.key_id,
-            "signature": bytes.fromhex("") .hex() if False else signed.signature,
+            "signature": signed.signature,
             "encoding": "base64",
         }
         provenance_bytes = (
