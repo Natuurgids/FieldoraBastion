@@ -72,7 +72,9 @@ def _parser() -> argparse.ArgumentParser:
     acquire.add_argument("--query-json", required=True)
     acquire.add_argument("--record-count", type=int, required=True)
     acquire.add_argument("--max-bytes", type=int, default=64 * 1024 * 1024 * 1024)
-    acquire.add_argument("--signing-key", type=Path)\n    acquire.add_argument("--signer-socket", type=Path)\n    acquire.add_argument("--signer-key-id")
+    acquire.add_argument("--signing-key", type=Path)
+    acquire.add_argument("--signer-socket", type=Path)
+    acquire.add_argument("--signer-key-id")
 
     gbif = sub.add_parser("certify-gbif-dataset")
     gbif.add_argument("source", type=Path)
