@@ -41,6 +41,8 @@ def _approved_url(url: str) -> bool:
         and parsed.password is None
         and port in (None, 443)
         and not parsed.fragment
+        and not parsed.query
+        and bool(_GBIF_DOWNLOAD_PATH.fullmatch(parsed.path))
     )
 
 
