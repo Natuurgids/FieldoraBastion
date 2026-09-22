@@ -2,6 +2,8 @@ name: Atomic transfer certification
 
 on:
   workflow_dispatch:
+  push:
+    branches: [main]
   pull_request:
     paths:
       - "src/fieldora_bastion/atomic_transfer_store.py"
