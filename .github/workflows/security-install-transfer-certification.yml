@@ -2,24 +2,7 @@ name: Standalone Security Install transfer certification
 
 on:
   push:
-    paths:
-      - "src/fieldora_bastion/security_install_transfer.py"
-      - "src/fieldora_bastion/certified_artifact_transfer.py"
-      - "src/fieldora_bastion/dataset_certification.py"
-      - "src/fieldora_bastion/dataset_validation.py"
-      - "src/fieldora_bastion/gbif_provenance.py"
-      - "src/fieldora_bastion/gbif_acquisition.py"
-      - "src/fieldora_bastion/gbif_acquisition.py"
-      - "src/fieldora_bastion/scanner.py"
-      - "tests/test_certified_artifact_transfer.py"
-      - "tests/test_dataset_certification.py"
-      - "tests/test_dataset_validation.py"
-      - "tests/test_gbif_provenance.py"
-      - "tests/test_gbif_acquisition.py"
-      - "tests/test_gbif_acquisition.py"
-      - "src/fieldora_bastion/cli.py"
-      - "tests/test_security_install_transfer.py"
-      - ".github/workflows/security-install-transfer-certification.yml"
+    branches: [main]
   pull_request:
     paths:
       - "src/fieldora_bastion/security_install_transfer.py"
