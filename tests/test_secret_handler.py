@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import base64
 import json
+import stat
 from pathlib import Path
 
 import pytest
@@ -35,21 +36,47 @@ class _Socket:
         return response
 
 
+def _socket_stat():
+    class _Stat:
+        st_mode = stat.S_IFSOCK | 0o660
+
+    return _Stat()
+
+
 def test_unix_socket_signer_accepts_bound_signature(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(Path, "lstat", lambda _path: _socket_stat())
     _Socket.response = (
-        json.dumps({"key_id": "key-1", "signature": base64.b64encode(b"x" * 64).decode()})
+        json.dumps({"key_id": "a" * 32, "signature": base64.b64encode(b"x" * 64).decode()})
         + "\n"
     ).encode()
     monkeypatch.setattr(sh.socket, "socket", lambda *_args: _Socket())
-    signed = sh.UnixSocketSigner(Path("/run/bastion/signer.sock"), "key-1").sign(b"payload")
-    assert signed.key_id == "key-1"
+    signed = sh.UnixSocketSigner(Path("/run/bastion/signer.sock"), "a" * 32).sign(b"payload")
+    assert signed.key_id == "a" * 32
 
 
 def test_unix_socket_signer_rejects_wrong_key_id(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr(Path, "lstat", lambda _path: _socket_stat())
     _Socket.response = (
-        json.dumps({"key_id": "other", "signature": base64.b64encode(b"x" * 64).decode()})
+        json.dumps({"key_id": "b" * 32, "signature": base64.b64encode(b"x" * 64).decode()})
         + "\n"
     ).encode()
     monkeypatch.setattr(sh.socket, "socket", lambda *_args: _Socket())
     with pytest.raises(SigningError, match="unexpected key id"):
-        sh.UnixSocketSigner(Path("/run/bastion/signer.sock"), "key-1").sign(b"payload")
+        sh.UnixSocketSigner(Path("/run/bastion/signer.sock"), "a" * 32).sign(b"payload")
+
+
+def test_unix_socket_signer_rejects_non_socket_endpoint(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class _Stat:
+        st_mode = stat.S_IFREG | 0o600
+
+    monkeypatch.setattr(Path, "lstat", lambda _path: _Stat())
+    signer = sh.UnixSocketSigner(Path("/run/bastion/signer.sock"), "a" * 32)
+    with pytest.raises(SigningError, match="Unix-domain socket"):
+        signer.sign(b"payload")
+
+
+def test_unix_socket_signer_rejects_noncanonical_key_id() -> None:
+    with pytest.raises(SigningError, match="32 lowercase hexadecimal"):
+        sh.UnixSocketSigner(Path("/run/bastion/signer.sock"), "key-1")
