@@ -174,7 +174,7 @@ def test_scan_attestation_requires_clean_result_matching_payload_and_signature(t
             signing_key=key_path,
             scan_report=_scan_report(tmp_path / "count.json", file_count=2),
         )
-    with pytest.raises(BundleBuildError, match="requires a signing key"):
+    with pytest.raises(BundleBuildError, match="requires a signer"):
         build_model_bundle(
             source,
             tmp_path / "unsigned-out",
