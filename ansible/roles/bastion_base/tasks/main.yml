@@ -22,7 +22,8 @@
   loop:
     - { path: "{{ fieldora_bastion_root }}", mode: "0750" }
     - { path: "{{ fieldora_bastion_quarantine }}", mode: "0700" }
-    - { path: "{{ fieldora_bastion_export }}", mode: "0750" }\n    - { path: "{{ fieldora_bastion_runtime }}", mode: "0700" }
+    - { path: "{{ fieldora_bastion_export }}", mode: "0750" }
+    - { path: "{{ fieldora_bastion_runtime }}", mode: "0700" }
 
 - name: Create root-owned Bastion secret directory
   ansible.builtin.file:
