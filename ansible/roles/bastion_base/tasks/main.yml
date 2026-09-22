@@ -71,21 +71,6 @@
       Remove the file-based Bastion signing key. Signing authority must be
       exposed by the configured Vault/HSM/TPM handler.
 
-- name: Install Bastion systemd unit
-  ansible.builtin.template:
-    src: fieldora-bastion.service.j2
-    dest: /etc/systemd/system/fieldora-bastion.service
-    owner: root
-    group: root
-    mode: "0644"
-  notify: Reload systemd
-
-- name: Enable Bastion service
-  ansible.builtin.systemd_service:
-    name: fieldora-bastion.service
-    enabled: true
-    daemon_reload: true
-
 - name: Validate Bastion-local Keycloak settings when enabled
   ansible.builtin.assert:
     that:
