@@ -19,8 +19,7 @@ jobs:
           python-version: "3.11"
           cache: pip
       - name: Install locked project range
-        run: python -m pip install --disable-pip-version-check -e ".[dev]"
+        run: python -m pip install --disable-pip-version-check -e ".[dev]" ansible-core ansible-lint
       - name: Ruff
         run: ruff check src tests
-      - name: Pytest
-        run: pytest -q
+      - name: Ansible lint\n        run: ansible-lint ansible/site.yml\n      - name: Ansible syntax\n        run: ansible-playbook --syntax-check ansible/site.yml\n      - name: Pytest\n        run: pytest -q
