@@ -3,14 +3,6 @@ name: FieldoraBastion model bundle certification
 on:
   push:
     branches: [main]
-    paths:
-      - "pyproject.toml"
-      - "Containerfile"
-      - "compose.yaml"
-      - "src/fieldora_bastion/**"
-      - "tests/test_model_bundle.py"
-      - "tests/test_scanner.py"
-      - ".github/workflows/model-bundle-certification.yml"
   pull_request:
     paths:
       - "pyproject.toml"
