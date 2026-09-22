@@ -2,6 +2,8 @@ name: Collection receipt certification
 
 on:
   workflow_dispatch:
+  push:
+    branches: [main]
   pull_request:
     paths:
       - "src/fieldora_bastion/collection_auth.py"
