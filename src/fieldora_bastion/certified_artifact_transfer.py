@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import base64
 import hashlib
 import json
 import os
@@ -12,11 +11,9 @@ import tempfile
 from pathlib import Path
 from zipfile import ZIP_DEFLATED, ZipFile
 
-from cryptography.hazmat.primitives import serialization
-from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
-
 from fieldora_bastion.release_binding import canonical_sha256
 from fieldora_bastion.scanner import ScanError, payload_tree_digest
+from fieldora_bastion.signing import PemFileSigner, Signer, SigningError
 
 ARTIFACT_TYPES = {"ai_model", "map_dataset", "biodiversity_dataset"}
 _SAFE_ID = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$")
@@ -34,22 +31,6 @@ def _sha256(path: Path) -> str:
     return digest.hexdigest()
 
 
-def _sign_evidence(evidence_bytes: bytes, signing_key: Path) -> tuple[str, str]:
-    if signing_key.is_symlink() or not signing_key.is_file():
-        raise CertifiedArtifactError("signing key must be a regular non-symlink file")
-    try:
-        key = serialization.load_pem_private_key(signing_key.read_bytes(), password=None)
-    except (OSError, TypeError, ValueError) as exc:
-        raise CertifiedArtifactError("signing key is unreadable or invalid") from exc
-    if not isinstance(key, Ed25519PrivateKey):
-        raise CertifiedArtifactError("signing key must be an Ed25519 private key")
-    public_der = key.public_key().public_bytes(
-        serialization.Encoding.DER, serialization.PublicFormat.SubjectPublicKeyInfo
-    )
-    key_id = hashlib.sha256(public_der).hexdigest()[:32]
-    return key_id, base64.b64encode(key.sign(evidence_bytes)).decode("ascii")
-
-
 def build_certified_artifact_transfer(
     source_root: Path,
     output_root: Path,
@@ -58,7 +39,8 @@ def build_certified_artifact_transfer(
     artifact_id: str,
     version: str,
     signer_key_id: str,
-    signing_key: Path,
+    signing_key: Path | None = None,
+    signer: Signer | None = None,
     provenance: dict,
     validation: dict,
     expected_payload_sha256: str | None = None,
@@ -171,9 +153,18 @@ def build_certified_artifact_transfer(
         evidence_bytes = (
             json.dumps(evidence, ensure_ascii=False, sort_keys=True, separators=(",", ":")) + "\n"
         ).encode("utf-8")
-        derived_key_id, signature = _sign_evidence(evidence_bytes, signing_key)
+        if signer is not None and signing_key is not None:
+            raise CertifiedArtifactError("provide signer or signing_key, not both")
+        try:
+            active_signer = signer or (PemFileSigner(signing_key) if signing_key else None)
+        except SigningError as exc:
+            raise CertifiedArtifactError(str(exc)) from exc
+        if active_signer is None:
+            raise CertifiedArtifactError("a Bastion signer is required")
+        signed = active_signer.sign(evidence_bytes)
+        derived_key_id, signature = signed.key_id, signed.signature
         if derived_key_id != signer_key_id:
-            raise CertifiedArtifactError("signer key id does not match Ed25519 signing key")
+            raise CertifiedArtifactError("signer key id does not match configured signer")
         evidence_path.write_bytes(evidence_bytes)
         signature_path.write_text(
             json.dumps(
