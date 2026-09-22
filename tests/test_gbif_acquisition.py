@@ -53,6 +53,10 @@ def _signing_key(tmp_path: Path) -> Path:
     return path
 
 
+def _artifact_names(tmp_path: Path) -> list[str]:
+    return sorted(path.name for path in tmp_path.iterdir() if path.name != "acquisition-key.pem")
+
+
 def test_controlled_acquisition_binds_actual_downloaded_bytes(tmp_path: Path) -> None:
     payload = b"real-gbif-archive"
     archive, provenance = acquire_gbif_archive(
@@ -90,7 +94,7 @@ def test_controlled_acquisition_rejects_unapproved_final_url(tmp_path: Path) -> 
             opener=_Opener(_Response(b"payload", "https://evil.invalid/archive.zip")),
             signing_key=_signing_key(tmp_path),
         )
-    assert list(tmp_path.iterdir()) == []
+    assert _artifact_names(tmp_path) == []
 
 
 def test_controlled_acquisition_enforces_stream_size_limit(tmp_path: Path) -> None:
@@ -109,7 +113,7 @@ def test_controlled_acquisition_enforces_stream_size_limit(tmp_path: Path) -> No
             ),
             signing_key=_signing_key(tmp_path),
         )
-    assert list(tmp_path.iterdir()) == []
+    assert _artifact_names(tmp_path) == []
 
 
 @pytest.mark.parametrize("download_key", ["../escape", "..", ".", "a/b", r"a\\b"])
@@ -132,7 +136,7 @@ def test_controlled_acquisition_rejects_unsafe_download_key_before_network(
             opener=_NeverOpen(),
             signing_key=_signing_key(tmp_path),
         )
-    assert list(tmp_path.iterdir()) == []
+    assert _artifact_names(tmp_path) == []
 
 
 def test_controlled_acquisition_rejects_invalid_metadata_before_network(tmp_path: Path) -> None:
@@ -152,7 +156,7 @@ def test_controlled_acquisition_rejects_invalid_metadata_before_network(tmp_path
             opener=_NeverOpen(),
             signing_key=_signing_key(tmp_path),
         )
-    assert list(tmp_path.iterdir()) == []
+    assert _artifact_names(tmp_path) == []
 
 
 @pytest.mark.parametrize(
