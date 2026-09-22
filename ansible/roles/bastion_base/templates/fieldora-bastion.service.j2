@@ -1,0 +1,26 @@
+[Unit]
+Description=Fieldora Bastion
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User={{ fieldora_bastion_user }}
+Group={{ fieldora_bastion_group }}
+WorkingDirectory={{ fieldora_bastion_root }}
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths={{ fieldora_bastion_quarantine }} {{ fieldora_bastion_export }}
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+LockPersonality=true
+MemoryDenyWriteExecute=true
+ExecStart=/usr/local/bin/fieldora-bastion --help
+
+[Install]
+WantedBy=multi-user.target
