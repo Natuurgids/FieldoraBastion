@@ -141,7 +141,9 @@ def main(argv: list[str] | None = None) -> int:
                 artifact, evidence = certify_map_dataset(
                     args.source, args.output, dataset_id=args.dataset_id,
                     version=args.version, signer_key_id=args.signer_key_id,
-                    signing_key=args.signing_key, source_id=args.source_id, license_id=args.license_id,
+                    signing_key=args.signing_key,
+                    source_id=args.source_id,
+                    license_id=args.license_id,
                     scan_report=args.scan_report,
                 )
             else:
@@ -149,13 +151,24 @@ def main(argv: list[str] | None = None) -> int:
                 artifact, evidence = certify_gbif_dataset(
                     args.source, args.output, dataset_id=args.dataset_id,
                     version=args.version, signer_key_id=args.signer_key_id,
-                    signing_key=args.signing_key, acquisition_record=acquisition, scan_report=args.scan_report,
+                    signing_key=args.signing_key,
+                    acquisition_record=acquisition,
+                    scan_report=args.scan_report,
                     acquisition_public_key=args.acquisition_public_key,
                 )
-        except (DatasetCertificationError, OSError, UnicodeDecodeError, json.JSONDecodeError, ValueError) as exc:
+        except (
+            DatasetCertificationError,
+            OSError,
+            UnicodeDecodeError,
+            json.JSONDecodeError,
+            ValueError,
+        ) as exc:
             print(json.dumps({"ok": False, "error": str(exc)}, separators=(",", ":")))
             return 2
-        print(json.dumps({"ok": True, "artifact": str(artifact), "evidence": str(evidence)}, separators=(",", ":")))
+        print(json.dumps(
+            {"ok": True, "artifact": str(artifact), "evidence": str(evidence)},
+            separators=(",", ":"),
+        ))
         return 0
 
     if args.command == "export-security-install":
