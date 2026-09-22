@@ -142,10 +142,10 @@ def acquire_gbif_archive(
             signed_payload = json.dumps(
             provenance_record, sort_keys=True, separators=(",", ":")
         ).encode("utf-8")
-            public_der = private_key.public_key().public_bytes(
+        public_der = private_key.public_key().public_bytes(
                 serialization.Encoding.DER, serialization.PublicFormat.SubjectPublicKeyInfo
             )
-            provenance_record["acquisition_attestation"] = {
+        provenance_record["acquisition_attestation"] = {
                 "algorithm": "ed25519",
                 "key_id": hashlib.sha256(public_der).hexdigest()[:32],
                 "signature": private_key.sign(signed_payload).hex(),
