@@ -5,11 +5,10 @@ import json
 from pathlib import Path
 
 import pytest
-
-import fieldora_bastion.gbif_acquisition as ga
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 
+import fieldora_bastion.gbif_acquisition as ga
 from fieldora_bastion.gbif_acquisition import GbifAcquisitionError, acquire_gbif_archive
 
 
