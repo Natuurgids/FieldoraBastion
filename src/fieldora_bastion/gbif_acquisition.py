@@ -130,29 +130,27 @@ def acquire_gbif_archive(
         except GbifProvenanceError as exc:
             raise GbifAcquisitionError(str(exc)) from exc
         provenance_record = acquisition.as_provenance()
-        if signing_key is not None:
-            try:
-                private_key = serialization.load_pem_private_key(
+        try:
+            private_key = serialization.load_pem_private_key(
                 signing_key.read_bytes(), password=None
             )
-            except (OSError, ValueError, TypeError) as exc:
-                raise GbifAcquisitionError("GBIF acquisition signing key is unreadable") from exc
-            if not isinstance(private_key, Ed25519PrivateKey):
-                raise GbifAcquisitionError("GBIF acquisition signing key must be Ed25519")
-            signed_payload = json.dumps(
+        except (OSError, ValueError, TypeError) as exc:
+            raise GbifAcquisitionError("GBIF acquisition signing key is unreadable") from exc
+        if not isinstance(private_key, Ed25519PrivateKey):
+            raise GbifAcquisitionError("GBIF acquisition signing key must be Ed25519")
+        signed_payload = json.dumps(
             provenance_record, sort_keys=True, separators=(",", ":")
         ).encode("utf-8")
         public_der = private_key.public_key().public_bytes(
-                serialization.Encoding.DER, serialization.PublicFormat.SubjectPublicKeyInfo
-            )
+            serialization.Encoding.DER, serialization.PublicFormat.SubjectPublicKeyInfo
+        )
         provenance_record["acquisition_attestation"] = {
-                "algorithm": "ed25519",
-                "key_id": hashlib.sha256(public_der).hexdigest()[:32],
-                "signature": private_key.sign(signed_payload).hex(),
-            }
+            "algorithm": "ed25519",
+            "key_id": hashlib.sha256(public_der).hexdigest()[:32],
+            "signature": private_key.sign(signed_payload).hex(),
+        }
         provenance_bytes = (
-            json.dumps(provenance_record, sort_keys=True, separators=(",", ":")) + "
-"
+            json.dumps(provenance_record, sort_keys=True, separators=(",", ":")) + "\\n"
         ).encode("utf-8")
         provenance_descriptor, provenance_temporary_name = tempfile.mkstemp(
             prefix=".gbif-provenance-", suffix=".part", dir=quarantine_root
