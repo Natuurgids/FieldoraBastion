@@ -133,7 +133,11 @@ def certify_gbif_dataset(
     try:
         encoding = str(attestation.get("encoding") or "hex")
         encoded = str(attestation.get("signature") or "")
-        signature = base64.b64decode(encoded, validate=True) if encoding == "base64" else bytes.fromhex(encoded)
+        signature = (
+            base64.b64decode(encoded, validate=True)
+            if encoding == "base64"
+            else bytes.fromhex(encoded)
+        )
         public_key.verify(signature, payload)
     except (ValueError, InvalidSignature) as exc:
         raise DatasetCertificationError(
