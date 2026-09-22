@@ -205,9 +205,7 @@ def test_gbif_certification_rejects_duplicate_normalized_member(tmp_path: Path) 
     source = tmp_path / "duplicate.zip"
     with ZipFile(source, "w") as archive:
         archive.writestr("occurrence.csv", "occurrenceID,scientificName\n1,Parus major\n")
-        archive.writestr("occurrence.csv", "occurrenceID,scientificName
-2,Cyanistes caeruleus
-")
+        archive.writestr("occurrence.csv", "occurrenceID,scientificName\n2,Cyanistes caeruleus\n")
     signing_key, key_id = _signing_key(tmp_path)
     with pytest.raises(DatasetCertificationError, match="unsafe path"):
         certify_gbif_dataset(
