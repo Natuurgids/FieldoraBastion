@@ -53,7 +53,12 @@ def build_certified_artifact_transfer(
     """
     if artifact_type not in ARTIFACT_TYPES:
         raise CertifiedArtifactError(f"unsupported artifact type: {artifact_type}")
-    for name, value in (("artifact_id", artifact_id), ("version", version), ("signer_key_id", signer_key_id)):
+    identity_fields = (
+        ("artifact_id", artifact_id),
+        ("version", version),
+        ("signer_key_id", signer_key_id),
+    )
+    for name, value in identity_fields:
         if not _SAFE_ID.fullmatch(value):
             raise CertifiedArtifactError(f"invalid {name}")
     if not isinstance(provenance, dict) or not provenance:
@@ -66,7 +71,10 @@ def build_certified_artifact_transfer(
         observed_file_count, observed_payload_sha256 = payload_tree_digest(source_root)
     except ScanError as exc:
         raise CertifiedArtifactError("artifact source cannot be bound safely") from exc
-    if expected_payload_sha256 is not None and observed_payload_sha256 != expected_payload_sha256:
+    if (
+        expected_payload_sha256 is not None
+        and observed_payload_sha256 != expected_payload_sha256
+    ):
         raise CertifiedArtifactError("artifact source changed after malware scan")
     if expected_file_count is not None and observed_file_count != expected_file_count:
         raise CertifiedArtifactError("artifact file count changed after malware scan")
