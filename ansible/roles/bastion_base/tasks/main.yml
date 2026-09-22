@@ -54,6 +54,7 @@
     that:
       - bastion_base_secret_handler in ["vault", "hsm", "tpm"]
       - bastion_base_secret_handler_endpoint | length > 0
+      - bastion_base_signer_key_id is match("^[0-9a-f]{32}$")
     fail_msg: >-
       Configure a Bastion-local Vault/HSM/TPM secret handler. Private signing
       material must not be distributed through Ansible.
