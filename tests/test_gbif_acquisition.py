@@ -74,7 +74,7 @@ def test_controlled_acquisition_binds_actual_downloaded_bytes(tmp_path: Path) ->
     assert record["archive_sha256"] == hashlib.sha256(payload).hexdigest()
     assert record["archive_size"] == len(payload)
     assert record["acquisition_attestation"]["algorithm"] == "ed25519"
-    assert len(record["acquisition_attestation"]["signature"]) == 128
+    assert record["acquisition_attestation"]["encoding"] == "base64"\n    assert len(record["acquisition_attestation"]["signature"]) == 88
 
 
 def test_controlled_acquisition_rejects_unapproved_final_url(tmp_path: Path) -> None:
