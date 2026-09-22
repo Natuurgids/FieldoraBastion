@@ -6,3 +6,10 @@ fieldora_bastion_quarantine: "{{ fieldora_bastion_root }}/quarantine"
 fieldora_bastion_export: "{{ fieldora_bastion_root }}/export"
 fieldora_bastion_secrets: /etc/fieldora-bastion/secrets
 fieldora_bastion_signing_key: "{{ fieldora_bastion_secrets }}/acquisition-signing-key.pem"
+
+# Secret material is never a role default. Configure only the external handler.
+bastion_secret_handler: vault
+bastion_secret_handler_endpoint: ""
+bastion_keycloak_enabled: false
+bastion_keycloak_issuer: ""
+bastion_keycloak_audience: fieldora-bastion
