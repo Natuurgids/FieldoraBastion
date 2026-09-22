@@ -5,6 +5,8 @@ import json
 from pathlib import Path
 
 import pytest
+
+import fieldora_bastion.gbif_acquisition as ga
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 
@@ -181,3 +183,71 @@ def test_controlled_acquisition_rejects_non_download_endpoints_before_network(
             signing_key=_signing_key(tmp_path),
         )
     assert list(tmp_path.iterdir()) == [tmp_path / "acquisition-key.pem"]
+
+
+def test_controlled_acquisition_rolls_back_if_provenance_publish_fails(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    signing_key = _signing_key(tmp_path)
+    real_replace = ga.os.replace
+    calls = 0
+
+    def fail_second_replace(source, destination):
+        nonlocal calls
+        calls += 1
+        if calls == 2:
+            raise OSError("simulated provenance publish failure")
+        return real_replace(source, destination)
+
+    monkeypatch.setattr(ga.os, "replace", fail_second_replace)
+    with pytest.raises(GbifAcquisitionError, match="acquisition failed"):
+        acquire_gbif_archive(
+            "https://api.gbif.org/v1/occurrence/download/request/key-rollback",
+            tmp_path,
+            download_key="key-rollback",
+            doi="10.15468/dl.example",
+            license_id="CC0-1.0",
+            query={"country": "NL"},
+            record_count=1,
+            opener=_Opener(
+                _Response(
+                    b"payload",
+                    "https://api.gbif.org/v1/occurrence/download/request/key-rollback",
+                )
+            ),
+            signing_key=signing_key,
+        )
+    assert not (tmp_path / "key-rollback.zip").exists()
+    assert not (tmp_path / "key-rollback.acquisition.json").exists()
+    assert sorted(path.name for path in tmp_path.iterdir()) == ["acquisition-key.pem"]
+
+
+def test_controlled_acquisition_cleans_up_if_archive_publish_fails(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    signing_key = _signing_key(tmp_path)
+
+    def fail_replace(_source, _destination):
+        raise OSError("simulated archive publish failure")
+
+    monkeypatch.setattr(ga.os, "replace", fail_replace)
+    with pytest.raises(GbifAcquisitionError, match="acquisition failed"):
+        acquire_gbif_archive(
+            "https://api.gbif.org/v1/occurrence/download/request/key-no-publish",
+            tmp_path,
+            download_key="key-no-publish",
+            doi="10.15468/dl.example",
+            license_id="CC0-1.0",
+            query={"country": "NL"},
+            record_count=1,
+            opener=_Opener(
+                _Response(
+                    b"payload",
+                    "https://api.gbif.org/v1/occurrence/download/request/key-no-publish",
+                )
+            ),
+            signing_key=signing_key,
+        )
+    assert not (tmp_path / "key-no-publish.zip").exists()
+    assert not (tmp_path / "key-no-publish.acquisition.json").exists()
+    assert sorted(path.name for path in tmp_path.iterdir()) == ["acquisition-key.pem"]
