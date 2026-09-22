@@ -12,8 +12,10 @@ from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 import fieldora_bastion.dataset_certification as dc
 from fieldora_bastion.dataset_certification import (
     DatasetCertificationError,
-    certify_gbif_dataset as _certify_gbif_dataset,
     certify_map_dataset,
+)
+from fieldora_bastion.dataset_certification import (
+    certify_gbif_dataset as _certify_gbif_dataset,
 )
 from fieldora_bastion.scanner import payload_tree_digest
 
