@@ -1,6 +1,8 @@
 name: FieldoraBastion secure transfer broker certification
 
 on:
+  push:
+    branches: [main]
   pull_request:
     paths:
       - "src/fieldora_bastion/transfer_broker.py"
