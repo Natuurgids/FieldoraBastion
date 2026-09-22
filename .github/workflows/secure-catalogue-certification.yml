@@ -12,11 +12,6 @@ on:
       - ".github/workflows/secure-catalogue-certification.yml"
   push:
     branches: [main]
-    paths:
-      - "src/fieldora_bastion/secure_catalogue.py"
-      - "src/fieldora_bastion/transfer_broker.py"
-      - "tests/test_secure_catalogue.py"
-      - "tests/test_transfer_broker.py"
 
 jobs:
   certify:
