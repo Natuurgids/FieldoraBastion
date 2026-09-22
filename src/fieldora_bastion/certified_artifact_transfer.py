@@ -93,7 +93,11 @@ def build_certified_artifact_transfer(
             for path in files:
                 if path.is_symlink():
                     raise CertifiedArtifactError("certified transfer must not contain symlinks")
-                relative = Path(path.name) if source_root.is_file() else path.relative_to(source_root)
+                relative = (
+                    Path(path.name)
+                    if source_root.is_file()
+                    else path.relative_to(source_root)
+                )
                 destination = snapshot / relative
                 destination.parent.mkdir(parents=True, exist_ok=True)
                 flags = os.O_RDONLY | getattr(os, "O_BINARY", 0) | getattr(os, "O_NOFOLLOW", 0)
