@@ -30,8 +30,8 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: "3.11"
           cache: pip
@@ -47,6 +47,8 @@ jobs:
           fieldora-bastion scan-model-source --help | grep -- '--database' >/dev/null
           fieldora-bastion build-model-bundle --help >/dev/null
           fieldora-bastion build-model-bundle --help | grep -- '--signing-key' >/dev/null
+          fieldora-bastion build-model-bundle --help | grep -- '--signer-socket' >/dev/null
+          fieldora-bastion build-model-bundle --help | grep -- '--signer-key-id' >/dev/null
           fieldora-bastion build-model-bundle --help | grep -- '--scan-report' >/dev/null
       - name: Certify Fieldora model signature and scan boundary
         run: |
@@ -62,11 +64,11 @@ jobs:
               raise SystemExit('bundle or scan-attestation bounds are unexpectedly broad')
           text = Path('src/fieldora_bastion/model_bundle.py').read_text()
           for required in (
-              'Ed25519PrivateKey', 'manifest.sig', 'algorithm": "ed25519"', 'key_id',
+              'PemFileSigner', 'Signer', 'manifest.sig', 'algorithm": "ed25519"', 'key_id',
               'malware_scan', 'payload_sha256', 'scan report must attest a clean result',
               'scan report file_count does not match bundle payload',
               'scan report payload digest does not match bundle payload',
-              'scan attestation requires a signing key',
+              'scan attestation requires a signer',
           ):
               if required not in text:
                   raise SystemExit(f'missing Bastion trust-boundary marker: {required}')
