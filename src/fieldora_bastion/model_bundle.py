@@ -2,15 +2,13 @@
 
 from __future__ import annotations
 
-import base64
 import hashlib
 import json
 import shutil
 from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
 
-from cryptography.hazmat.primitives import serialization
-from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
+from fieldora_bastion.signing import PemFileSigner, Signer, SigningError
 
 _MODEL_EXTENSIONS = {".safetensors", ".onnx", ".gguf"}
 _SUPPORT_EXTENSIONS = {
@@ -150,25 +148,6 @@ def _clean_scan_attestation(
     }
 
 
-def _sign_manifest(manifest_bytes: bytes, signing_key: Path) -> tuple[str, str]:
-    if signing_key.is_symlink() or not signing_key.is_file():
-        raise BundleBuildError("signing key must be a regular non-symlink file")
-    try:
-        key = serialization.load_pem_private_key(signing_key.read_bytes(), password=None)
-    except (OSError, TypeError, ValueError) as exc:
-        raise BundleBuildError("signing key is unreadable or invalid") from exc
-    if not isinstance(key, Ed25519PrivateKey):
-        raise BundleBuildError("signing key must be an Ed25519 private key")
-    public = key.public_key()
-    public_der = public.public_bytes(
-        serialization.Encoding.DER,
-        serialization.PublicFormat.SubjectPublicKeyInfo,
-    )
-    key_id = hashlib.sha256(public_der).hexdigest()[:32]
-    signature = base64.b64encode(key.sign(manifest_bytes)).decode("ascii")
-    return key_id, signature
-
-
 def build_model_bundle(
     source_root: Path,
     output_root: Path,
@@ -179,6 +158,7 @@ def build_model_bundle(
     license_id: str = "unspecified",
     max_total_bytes: int = _MAX_TOTAL_BYTES,
     signing_key: Path | None = None,
+    signer: Signer | None = None,
     scan_report: Path | None = None,
 ) -> BuiltModelBundle:
     """Copy pre-vetted model files and emit the trusted-side manifest contract.
@@ -239,8 +219,14 @@ def build_model_bundle(
     malware_scan = (
         None if scan_report is None else _clean_scan_attestation(scan_report, manifest_files)
     )
-    if scan_report is not None and signing_key is None:
-        raise BundleBuildError("scan attestation requires a signing key")
+    if signer is not None and signing_key is not None:
+        raise BundleBuildError("provide signer or signing_key, not both")
+    try:
+        active_signer = signer or (PemFileSigner(signing_key) if signing_key else None)
+    except SigningError as exc:
+        raise BundleBuildError(str(exc)) from exc
+    if scan_report is not None and active_signer is None:
+        raise BundleBuildError("scan attestation requires a signer")
 
     destination = output_root.resolve() / f"{model_id}-{version}"
     if destination.exists():
@@ -267,8 +253,9 @@ def build_model_bundle(
         ).encode("utf-8")
         (destination / "manifest.json").write_bytes(manifest_bytes)
         signing_key_id = ""
-        if signing_key is not None:
-            signing_key_id, signature = _sign_manifest(manifest_bytes, signing_key)
+        if active_signer is not None:
+            signed = active_signer.sign(manifest_bytes)
+            signing_key_id, signature = signed.key_id, signed.signature
             (destination / "manifest.sig").write_text(
                 json.dumps(
                     {
