@@ -22,7 +22,7 @@
   loop:
     - { path: "{{ fieldora_bastion_root }}", mode: "0750" }
     - { path: "{{ fieldora_bastion_quarantine }}", mode: "0700" }
-    - { path: "{{ fieldora_bastion_export }}", mode: "0750" }
+    - { path: "{{ fieldora_bastion_export }}", mode: "0750" }\n    - { path: "{{ fieldora_bastion_runtime }}", mode: "0700" }
 
 - name: Create root-owned Bastion secret directory
   ansible.builtin.file:
@@ -56,6 +56,19 @@
     fail_msg: >-
       Configure a Bastion-local Vault/HSM/TPM secret handler. Private signing
       material must not be distributed through Ansible.
+
+- name: Refuse regular-file signing keys
+  ansible.builtin.stat:
+    path: "{{ fieldora_bastion_secrets }}/acquisition-signing-key.pem"
+  register: legacy_signing_key
+
+- name: Fail if a file-based signing key is present
+  ansible.builtin.assert:
+    that:
+      - not legacy_signing_key.stat.exists
+    fail_msg: >-
+      Remove the file-based Bastion signing key. Signing authority must be
+      exposed by the configured Vault/HSM/TPM handler.
 
 - name: Install Bastion systemd unit
   ansible.builtin.template:
