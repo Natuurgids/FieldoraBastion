@@ -1,0 +1,6 @@
+---
+- name: Provision standalone Fieldora Bastion
+  hosts: bastion
+  become: true
+  roles:
+    - bastion_base
