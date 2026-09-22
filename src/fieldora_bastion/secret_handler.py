@@ -5,6 +5,7 @@ from __future__ import annotations
 import base64
 import json
 import socket
+import stat
 from pathlib import Path
 
 from fieldora_bastion.signing import Signature, Signer, SigningError
@@ -18,8 +19,8 @@ class UnixSocketSigner(Signer):
     def __init__(self, socket_path: Path, key_id: str, *, timeout: float = 10.0) -> None:
         if not socket_path.is_absolute():
             raise SigningError("signer socket path must be absolute")
-        if not key_id or len(key_id) > 128:
-            raise SigningError("signer key id is invalid")
+        if len(key_id) != 32 or any(char not in "0123456789abcdef" for char in key_id):
+            raise SigningError("signer key id must be 32 lowercase hexadecimal characters")
         self._socket_path = socket_path
         self._key_id = key_id
         self._timeout = timeout
@@ -29,6 +30,12 @@ class UnixSocketSigner(Signer):
         return self._key_id
 
     def sign(self, payload: bytes) -> Signature:
+        try:
+            socket_info = self._socket_path.lstat()
+        except OSError as exc:
+            raise SigningError("Bastion signing socket is unavailable") from exc
+        if stat.S_ISLNK(socket_info.st_mode) or not stat.S_ISSOCK(socket_info.st_mode):
+            raise SigningError("Bastion signing endpoint must be a Unix-domain socket")
         request = (
             json.dumps(
                 {"operation": "ed25519-sign", "payload": base64.b64encode(payload).decode("ascii")},
