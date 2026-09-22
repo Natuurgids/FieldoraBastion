@@ -14,6 +14,7 @@ from fieldora_bastion.dataset_certification import (
 from fieldora_bastion.gbif_acquisition import GbifAcquisitionError, acquire_gbif_archive
 from fieldora_bastion.model_bundle import BundleBuildError, build_model_bundle
 from fieldora_bastion.scanner import ScanError, scan_with_clamav
+from fieldora_bastion.secret_handler import UnixSocketSigner
 from fieldora_bastion.security_install_transfer import (
     TransferBuildError,
     build_security_install_transfer,
@@ -71,7 +72,7 @@ def _parser() -> argparse.ArgumentParser:
     acquire.add_argument("--query-json", required=True)
     acquire.add_argument("--record-count", type=int, required=True)
     acquire.add_argument("--max-bytes", type=int, default=64 * 1024 * 1024 * 1024)
-    acquire.add_argument("--signing-key", type=Path, required=True)
+    acquire.add_argument("--signing-key", type=Path)\n    acquire.add_argument("--signer-socket", type=Path)\n    acquire.add_argument("--signer-key-id")
 
     gbif = sub.add_parser("certify-gbif-dataset")
     gbif.add_argument("source", type=Path)
@@ -115,7 +116,13 @@ def main(argv: list[str] | None = None) -> int:
             archive, provenance = acquire_gbif_archive(
                 args.source_url, args.quarantine, download_key=args.download_key,
                 doi=args.doi, license_id=args.license_id, query=query,
-                record_count=args.record_count, max_bytes=args.max_bytes, signing_key=args.signing_key,
+                record_count=args.record_count, max_bytes=args.max_bytes,
+                signing_key=args.signing_key,
+                signer=(
+                    UnixSocketSigner(args.signer_socket, args.signer_key_id)
+                    if args.signer_socket and args.signer_key_id
+                    else None
+                ),
             )
         except (GbifAcquisitionError, OSError, json.JSONDecodeError, ValueError) as exc:
             print(json.dumps({"ok": False, "error": str(exc)}, separators=(",", ":")))
