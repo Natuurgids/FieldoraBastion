@@ -71,3 +71,22 @@
     name: fieldora-bastion.service
     enabled: true
     daemon_reload: true
+
+- name: Validate Bastion-local Keycloak settings when enabled
+  ansible.builtin.assert:
+    that:
+      - bastion_keycloak_issuer | length > 0
+      - bastion_keycloak_audience | length > 0
+      - "'fieldora' not in bastion_keycloak_issuer | lower"
+    fail_msg: >-
+      Bastion OIDC must use an explicitly configured Bastion-local issuer and
+      audience, not a Fieldora identity endpoint.
+  when: bastion_keycloak_enabled | bool
+
+- name: Install non-secret Bastion runtime environment
+  ansible.builtin.template:
+    src: fieldora-bastion.env.j2
+    dest: /etc/fieldora-bastion/runtime.env
+    owner: root
+    group: "{{ fieldora_bastion_group }}"
+    mode: "0640"
