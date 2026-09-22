@@ -153,7 +153,7 @@ def acquire_gbif_archive(
             "signature": private_key.sign(signed_payload).hex(),
         }
         provenance_bytes = (
-            json.dumps(provenance_record, sort_keys=True, separators=(",", ":")) + "\\n"
+            json.dumps(provenance_record, sort_keys=True, separators=(",", ":")) + "\n"
         ).encode("utf-8")
         provenance_descriptor, provenance_temporary_name = tempfile.mkstemp(
             prefix=".gbif-provenance-", suffix=".part", dir=quarantine_root
