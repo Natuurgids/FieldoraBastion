@@ -65,9 +65,7 @@ def test_gbif_certification_binds_source_validation_and_scan(tmp_path: Path) -> 
     source = tmp_path / "0003988-260831124212860.zip"
     with ZipFile(source, "w", compression=ZIP_DEFLATED) as archive:
         archive.writestr(
-            "occurrence.csv", "occurrenceID,scientificName
-1,Parus major
-"
+            "occurrence.csv", "occurrenceID,scientificName\n1,Parus major\n"
         )
     archive_bytes = source.read_bytes()
     signing_key, key_id = _signing_key(tmp_path)
@@ -165,9 +163,7 @@ def _gbif_record(source: Path) -> dict[str, object]:
 def test_gbif_certification_rejects_unsafe_archive_paths(tmp_path: Path, member: str) -> None:
     source = tmp_path / "unsafe.zip"
     with ZipFile(source, "w", compression=ZIP_DEFLATED) as archive:
-        archive.writestr(member, "occurrenceID,scientificName
-1,Parus major
-")
+        archive.writestr(member, "occurrenceID,scientificName\n1,Parus major\n")
     signing_key, key_id = _signing_key(tmp_path)
     with pytest.raises(DatasetCertificationError, match="unsafe path"):
         certify_gbif_dataset(
@@ -180,9 +176,7 @@ def test_gbif_certification_rejects_unsafe_archive_paths(tmp_path: Path, member:
 def test_gbif_certification_rejects_acquisition_digest_mismatch(tmp_path: Path) -> None:
     source = tmp_path / "digest.zip"
     with ZipFile(source, "w", compression=ZIP_DEFLATED) as archive:
-        archive.writestr("occurrence.csv", "occurrenceID,scientificName
-1,Parus major
-")
+        archive.writestr("occurrence.csv", "occurrenceID,scientificName\n1,Parus major\n")
     record = _gbif_record(source)
     record["archive_sha256"] = "0" * 64
     signing_key, key_id = _signing_key(tmp_path)
@@ -209,12 +203,8 @@ def test_gbif_certification_rejects_invalid_zip(tmp_path: Path) -> None:
 def test_gbif_certification_rejects_duplicate_normalized_member(tmp_path: Path) -> None:
     source = tmp_path / "duplicate.zip"
     with ZipFile(source, "w") as archive:
-        archive.writestr("occurrence.csv", "occurrenceID,scientificName
-1,Parus major
-")
-        archive.writestr("occurrence.csv", "occurrenceID,scientificName
-2,Cyanistes caeruleus
-")
+        archive.writestr("occurrence.csv", "occurrenceID,scientificName\n1,Parus major\n")
+        archive.writestr("occurrence.csv", "occurrenceID,scientificName\n2,Cyanistes caeruleus\n")
     signing_key, key_id = _signing_key(tmp_path)
     with pytest.raises(DatasetCertificationError, match="unsafe path"):
         certify_gbif_dataset(
@@ -256,9 +246,7 @@ def test_gbif_certification_rejects_compression_ratio_bomb(tmp_path: Path) -> No
 def test_gbif_certification_rejects_acquisition_size_mismatch(tmp_path: Path) -> None:
     source = tmp_path / "size.zip"
     with ZipFile(source, "w") as archive:
-        archive.writestr("occurrence.csv", "occurrenceID,scientificName
-1,Parus major
-")
+        archive.writestr("occurrence.csv", "occurrenceID,scientificName\n1,Parus major\n")
     record = _gbif_record(source)
     record["archive_size"] = int(record["archive_size"]) + 1
     signing_key, key_id = _signing_key(tmp_path)
@@ -273,9 +261,7 @@ def test_gbif_certification_rejects_acquisition_size_mismatch(tmp_path: Path) ->
 def test_gbif_certification_rejects_scan_file_count_mismatch(tmp_path: Path) -> None:
     source = tmp_path / "count.zip"
     with ZipFile(source, "w") as archive:
-        archive.writestr("occurrence.csv", "occurrenceID,scientificName
-1,Parus major
-")
+        archive.writestr("occurrence.csv", "occurrenceID,scientificName\n1,Parus major\n")
     report = _scan(tmp_path, source)
     data = json.loads(report.read_text())
     data["file_count"] += 1
@@ -292,7 +278,7 @@ def test_gbif_certification_rejects_scan_file_count_mismatch(tmp_path: Path) -> 
 def test_gbif_certification_requires_signed_acquisition_evidence(tmp_path: Path) -> None:
     source = tmp_path / "unsigned.zip"
     with ZipFile(source, "w") as archive:
-        archive.writestr("occurrence.csv", "occurrenceID,scientificName\\n1,Parus major\\n")
+        archive.writestr("occurrence.csv", "occurrenceID,scientificName\n1,Parus major\n")
     acquisition_key = Ed25519PrivateKey.generate()
     public_path = tmp_path / "acquisition-public.pem"
     public_path.write_bytes(
@@ -313,9 +299,7 @@ def test_gbif_certification_requires_signed_acquisition_evidence(tmp_path: Path)
 def test_gbif_certification_rejects_tampered_signed_acquisition_metadata(tmp_path: Path) -> None:
     source = tmp_path / "signed.zip"
     with ZipFile(source, "w") as archive:
-        archive.writestr("occurrence.csv", "occurrenceID,scientificName
-1,Parus major
-")
+        archive.writestr("occurrence.csv", "occurrenceID,scientificName\n1,Parus major\n")
     record = _gbif_record(source)
     acquisition_key = Ed25519PrivateKey.generate()
     public = acquisition_key.public_key()
