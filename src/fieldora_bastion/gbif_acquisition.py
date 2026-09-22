@@ -13,10 +13,8 @@ from urllib.error import HTTPError, URLError
 from urllib.parse import urljoin, urlparse
 from urllib.request import HTTPRedirectHandler, Request, build_opener
 
-from cryptography.hazmat.primitives import serialization
-from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
-
 from fieldora_bastion.gbif_provenance import GbifProvenanceError, validate_gbif_acquisition
+from fieldora_bastion.signing import PemFileSigner, Signer, SigningError
 
 _GBIF_HOSTS = {"gbif.org", "www.gbif.org", "api.gbif.org"}
 _GBIF_DOWNLOAD_PATH = re.compile(r"^/(?:v1/)?occurrence/download/(?:request/)?[^/]+/?$")
@@ -65,7 +63,8 @@ def acquire_gbif_archive(
     record_count: int,
     max_bytes: int = _MAX_ARCHIVE_BYTES,
     opener=None,
-    signing_key: Path,
+    signing_key: Path | None = None,
+    signer: Signer | None = None,
 ) -> tuple[Path, Path]:
     """Download into quarantine and generate provenance from bytes Bastion observed."""
     if not _approved_url(source_url):
@@ -133,24 +132,23 @@ def acquire_gbif_archive(
         except GbifProvenanceError as exc:
             raise GbifAcquisitionError(str(exc)) from exc
         provenance_record = acquisition.as_provenance()
+        if signer is not None and signing_key is not None:
+            raise GbifAcquisitionError("provide signer or signing_key, not both")
         try:
-            private_key = serialization.load_pem_private_key(
-                signing_key.read_bytes(), password=None
-            )
-        except (OSError, ValueError, TypeError) as exc:
-            raise GbifAcquisitionError("GBIF acquisition signing key is unreadable") from exc
-        if not isinstance(private_key, Ed25519PrivateKey):
-            raise GbifAcquisitionError("GBIF acquisition signing key must be Ed25519")
+            active_signer = signer or (PemFileSigner(signing_key) if signing_key else None)
+        except SigningError as exc:
+            raise GbifAcquisitionError(str(exc)) from exc
+        if active_signer is None:
+            raise GbifAcquisitionError("a Bastion acquisition signer is required")
         signed_payload = json.dumps(
             provenance_record, sort_keys=True, separators=(",", ":")
         ).encode("utf-8")
-        public_der = private_key.public_key().public_bytes(
-            serialization.Encoding.DER, serialization.PublicFormat.SubjectPublicKeyInfo
-        )
+        signed = active_signer.sign(signed_payload)
         provenance_record["acquisition_attestation"] = {
             "algorithm": "ed25519",
-            "key_id": hashlib.sha256(public_der).hexdigest()[:32],
-            "signature": private_key.sign(signed_payload).hex(),
+            "key_id": signed.key_id,
+            "signature": bytes.fromhex("") .hex() if False else signed.signature,
+            "encoding": "base64",
         }
         provenance_bytes = (
             json.dumps(provenance_record, sort_keys=True, separators=(",", ":")) + "\n"
