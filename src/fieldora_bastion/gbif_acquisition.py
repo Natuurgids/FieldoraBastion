@@ -13,9 +13,10 @@ from urllib.error import HTTPError, URLError
 from urllib.parse import urljoin, urlparse
 from urllib.request import HTTPRedirectHandler, Request, build_opener
 
-from fieldora_bastion.gbif_provenance import GbifProvenanceError, validate_gbif_acquisition
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
+
+from fieldora_bastion.gbif_provenance import GbifProvenanceError, validate_gbif_acquisition
 
 _GBIF_HOSTS = {"gbif.org", "www.gbif.org", "api.gbif.org"}
 _GBIF_DOWNLOAD_PATH = re.compile(r"^/(?:v1/)?occurrence/download/(?:request/)?[^/]+/?$")
