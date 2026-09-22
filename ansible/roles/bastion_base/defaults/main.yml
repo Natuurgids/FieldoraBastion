@@ -1,0 +1,8 @@
+---
+fieldora_bastion_user: fieldora-bastion
+fieldora_bastion_group: fieldora-bastion
+fieldora_bastion_root: /var/lib/fieldora-bastion
+fieldora_bastion_quarantine: "{{ fieldora_bastion_root }}/quarantine"
+fieldora_bastion_export: "{{ fieldora_bastion_root }}/export"
+fieldora_bastion_secrets: /etc/fieldora-bastion/secrets
+fieldora_bastion_signing_key: "{{ fieldora_bastion_secrets }}/acquisition-signing-key.pem"
