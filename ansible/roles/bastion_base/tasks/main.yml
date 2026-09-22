@@ -1,13 +1,13 @@
 ---
 - name: Create Bastion service group
   ansible.builtin.group:
-    name: "{{ fieldora_bastion_group }}"
+    name: "{{ bastion_base_group }}"
     system: true
 
 - name: Create Bastion service account
   ansible.builtin.user:
-    name: "{{ fieldora_bastion_user }}"
-    group: "{{ fieldora_bastion_group }}"
+    name: "{{ bastion_base_user }}"
+    group: "{{ bastion_base_group }}"
     system: true
     create_home: false
     shell: /usr/sbin/nologin
@@ -16,21 +16,21 @@
   ansible.builtin.file:
     path: "{{ item.path }}"
     state: directory
-    owner: "{{ fieldora_bastion_user }}"
-    group: "{{ fieldora_bastion_group }}"
+    owner: "{{ bastion_base_user }}"
+    group: "{{ bastion_base_group }}"
     mode: "{{ item.mode }}"
   loop:
-    - { path: "{{ fieldora_bastion_root }}", mode: "0750" }
-    - { path: "{{ fieldora_bastion_quarantine }}", mode: "0700" }
-    - { path: "{{ fieldora_bastion_export }}", mode: "0750" }
-    - { path: "{{ fieldora_bastion_runtime }}", mode: "0700" }
+    - { path: "{{ bastion_base_root }}", mode: "0750" }
+    - { path: "{{ bastion_base_quarantine }}", mode: "0700" }
+    - { path: "{{ bastion_base_export }}", mode: "0750" }
+    - { path: "{{ bastion_base_runtime }}", mode: "0700" }
 
 - name: Create root-owned Bastion secret directory
   ansible.builtin.file:
-    path: "{{ fieldora_bastion_secrets }}"
+    path: "{{ bastion_base_secrets }}"
     state: directory
     owner: root
-    group: "{{ fieldora_bastion_group }}"
+    group: "{{ bastion_base_group }}"
     mode: "0750"
 
 - name: Install malware scanner
@@ -52,21 +52,21 @@
 - name: Validate external secret-handler configuration
   ansible.builtin.assert:
     that:
-      - bastion_secret_handler in ["vault", "hsm", "tpm"]
-      - bastion_secret_handler_endpoint | length > 0
+      - bastion_base_secret_handler in ["vault", "hsm", "tpm"]
+      - bastion_base_secret_handler_endpoint | length > 0
     fail_msg: >-
       Configure a Bastion-local Vault/HSM/TPM secret handler. Private signing
       material must not be distributed through Ansible.
 
 - name: Refuse regular-file signing keys
   ansible.builtin.stat:
-    path: "{{ fieldora_bastion_secrets }}/acquisition-signing-key.pem"
-  register: legacy_signing_key
+    path: "{{ bastion_base_secrets }}/acquisition-signing-key.pem"
+  register: bastion_base_legacy_signing_key
 
 - name: Fail if a file-based signing key is present
   ansible.builtin.assert:
     that:
-      - not legacy_signing_key.stat.exists
+      - not bastion_base_legacy_signing_key.stat.exists
     fail_msg: >-
       Remove the file-based Bastion signing key. Signing authority must be
       exposed by the configured Vault/HSM/TPM handler.
@@ -89,18 +89,18 @@
 - name: Validate Bastion-local Keycloak settings when enabled
   ansible.builtin.assert:
     that:
-      - bastion_keycloak_issuer | length > 0
-      - bastion_keycloak_audience | length > 0
-      - "'fieldora' not in bastion_keycloak_issuer | lower"
+      - bastion_base_keycloak_issuer | length > 0
+      - bastion_base_keycloak_audience | length > 0
+      - "'fieldora' not in bastion_base_keycloak_issuer | lower"
     fail_msg: >-
       Bastion OIDC must use an explicitly configured Bastion-local issuer and
       audience, not a Fieldora identity endpoint.
-  when: bastion_keycloak_enabled | bool
+  when: bastion_base_keycloak_enabled | bool
 
 - name: Install non-secret Bastion runtime environment
   ansible.builtin.template:
     src: fieldora-bastion.env.j2
     dest: /etc/fieldora-bastion/runtime.env
     owner: root
-    group: "{{ fieldora_bastion_group }}"
+    group: "{{ bastion_base_group }}"
     mode: "0640"
