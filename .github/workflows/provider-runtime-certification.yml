@@ -2,6 +2,8 @@ name: Provider runtime certification
 
 on:
   workflow_dispatch:
+  push:
+    branches: [main]
   pull_request:
     paths:
       - "src/fieldora_bastion/provider_runtime.py"
