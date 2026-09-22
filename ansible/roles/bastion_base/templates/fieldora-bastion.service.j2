@@ -5,16 +5,16 @@ Wants=network-online.target
 
 [Service]
 Type=simple
-User={{ fieldora_bastion_user }}
-Group={{ fieldora_bastion_group }}
-WorkingDirectory={{ fieldora_bastion_root }}
+User={{ bastion_base_user }}
+Group={{ bastion_base_group }}
+WorkingDirectory={{ bastion_base_root }}
 UMask=0077
 NoNewPrivileges=true
 PrivateTmp=true
 PrivateDevices=true
 ProtectSystem=strict
 ProtectHome=true
-ReadWritePaths={{ fieldora_bastion_quarantine }} {{ fieldora_bastion_export }} {{ fieldora_bastion_runtime }}
+ReadWritePaths={{ bastion_base_quarantine }} {{ bastion_base_export }} {{ bastion_base_runtime }}
 ProtectKernelTunables=true
 ProtectKernelModules=true
 ProtectControlGroups=true
