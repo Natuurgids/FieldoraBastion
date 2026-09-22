@@ -39,11 +39,9 @@ def _parser() -> argparse.ArgumentParser:
     build.add_argument("--source-id", default="fieldora-bastion")
     build.add_argument("--license-id", default="unspecified")
     build.add_argument("--max-bytes", type=int, default=64 * 1024 * 1024 * 1024)
-    build.add_argument(
-        "--signing-key",
-        type=Path,
-        help="Ed25519 private key PEM used to emit manifest.sig; key material is never copied.",
-    )
+    build.add_argument("--signing-key", type=Path)
+    build.add_argument("--signer-socket", type=Path)
+    build.add_argument("--signer-key-id")
     build.add_argument(
         "--scan-report",
         type=Path,
@@ -58,7 +56,9 @@ def _parser() -> argparse.ArgumentParser:
     maps.add_argument("--dataset-id", required=True)
     maps.add_argument("--version", required=True)
     maps.add_argument("--signer-key-id", required=True)
-    maps.add_argument("--signing-key", type=Path, required=True)
+    maps.add_argument("--signing-key", type=Path)
+    maps.add_argument("--signer-socket", type=Path)
+    maps.add_argument("--handler-key-id")
     maps.add_argument("--source-id", required=True)
     maps.add_argument("--license-id", required=True)
     maps.add_argument("--scan-report", type=Path, required=True)
@@ -82,7 +82,9 @@ def _parser() -> argparse.ArgumentParser:
     gbif.add_argument("--dataset-id", required=True)
     gbif.add_argument("--version", required=True)
     gbif.add_argument("--signer-key-id", required=True)
-    gbif.add_argument("--signing-key", type=Path, required=True)
+    gbif.add_argument("--signing-key", type=Path)
+    gbif.add_argument("--signer-socket", type=Path)
+    gbif.add_argument("--handler-key-id")
     gbif.add_argument("--acquisition-record", type=Path, required=True)
     gbif.add_argument("--scan-report", type=Path, required=True)
     gbif.add_argument("--acquisition-public-key", type=Path, required=True)
@@ -92,6 +94,16 @@ def _parser() -> argparse.ArgumentParser:
     transfer.add_argument("output", type=Path)
     transfer.add_argument("--collector-id", default="offline-transfer")
     return parser
+
+
+def _external_signer(args: argparse.Namespace) -> UnixSocketSigner | None:
+    socket_path = getattr(args, "signer_socket", None)
+    key_id = getattr(args, "handler_key_id", None) or getattr(args, "signer_key_id", None)
+    if bool(socket_path) != bool(key_id):
+        raise ValueError("--signer-socket and signer key ID must be provided together")
+    if getattr(args, "signing_key", None) and socket_path:
+        raise ValueError("--signing-key cannot be combined with --signer-socket")
+    return UnixSocketSigner(socket_path, key_id) if socket_path else None
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -120,11 +132,7 @@ def main(argv: list[str] | None = None) -> int:
                 doi=args.doi, license_id=args.license_id, query=query,
                 record_count=args.record_count, max_bytes=args.max_bytes,
                 signing_key=args.signing_key,
-                signer=(
-                    UnixSocketSigner(args.signer_socket, args.signer_key_id)
-                    if args.signer_socket and args.signer_key_id
-                    else None
-                ),
+                signer=_external_signer(args),
             )
         except (GbifAcquisitionError, OSError, json.JSONDecodeError, ValueError) as exc:
             print(json.dumps({"ok": False, "error": str(exc)}, separators=(",", ":")))
@@ -142,6 +150,7 @@ def main(argv: list[str] | None = None) -> int:
                     args.source, args.output, dataset_id=args.dataset_id,
                     version=args.version, signer_key_id=args.signer_key_id,
                     signing_key=args.signing_key,
+                    signer=_external_signer(args),
                     source_id=args.source_id,
                     license_id=args.license_id,
                     scan_report=args.scan_report,
@@ -152,6 +161,7 @@ def main(argv: list[str] | None = None) -> int:
                     args.source, args.output, dataset_id=args.dataset_id,
                     version=args.version, signer_key_id=args.signer_key_id,
                     signing_key=args.signing_key,
+                    signer=_external_signer(args),
                     acquisition_record=acquisition,
                     scan_report=args.scan_report,
                     acquisition_public_key=args.acquisition_public_key,
@@ -195,6 +205,7 @@ def main(argv: list[str] | None = None) -> int:
             license_id=args.license_id,
             max_total_bytes=args.max_bytes,
             signing_key=args.signing_key,
+            signer=_external_signer(args),
             scan_report=args.scan_report,
         )
     except BundleBuildError as exc:
