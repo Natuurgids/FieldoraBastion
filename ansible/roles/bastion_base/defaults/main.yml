@@ -9,6 +9,7 @@ bastion_base_secrets: /etc/fieldora-bastion/secrets
 # Secret material is never a role default. Configure only the external handler.
 bastion_base_secret_handler: vault
 bastion_base_secret_handler_endpoint: "unix:///run/fieldora-bastion/secret-handler.sock"
+bastion_base_signer_key_id: ""
 bastion_base_keycloak_enabled: false
 bastion_base_keycloak_issuer: ""
 bastion_base_keycloak_audience: fieldora-bastion
